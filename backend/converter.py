@@ -1531,9 +1531,9 @@ def enhanced_full_conversion_process():
         
         # Use intelligent defaults for conversion parameters
         # (Since this is a file upload request, not JSON, we use defaults)
-        word_limit_per_chapter = 50  # No word limit for full conversion youcanchangethis
+        word_limit_per_chapter = None  # No word limit for full conversion youcanchangethis
         speaker_preference = 'female_narrator'  # Default to first available speaker
-        max_chapters = 5  # Convert all chapters found youcanchangethis
+        max_chapters = None  # Convert all chapters found youcanchangethis
         
         print(f"🎯 Conversion settings:")
         print(f"   Word limit per chapter: {word_limit_per_chapter or 'No limit'}")
@@ -2013,6 +2013,581 @@ def serve_audio_file(audio_path):
         print(f"❌ Error serving audio file: {str(e)}")
         return jsonify({'error': 'Failed to serve audio file'}), 500
 
+@app.route('/api/trailConvert', methods=['POST'])
+def trail_conversion_process():
+    """
+    Complete ebook-to-audiobook conversion endpoint with XTTS neural synthesis.
+    
+    This enhanced endpoint represents the evolution of your audiobook conversion system
+    from a two-step process (extract chapters, then convert to audio) into a single,
+    seamless pipeline that transforms ebooks directly into professional-quality audiobooks.
+    
+    Think of this as a master craftsman's workshop where raw materials (ebook files)
+    are transformed through multiple specialized processes into finished products
+    (complete audiobooks) - all in one continuous, carefully orchestrated operation.
+    
+    The process follows this comprehensive workflow:
+    1. Receive and validate the uploaded ebook file
+    2. Extract and organize chapters using intelligent content detection
+    3. Initialize the XTTS neural synthesis system
+    4. Convert each chapter to high-quality audio using neural voices
+    5. Organize the audio files for easy access and download
+    6. Return complete audiobook with detailed metadata and download links
+    
+    This approach eliminates the need for users to manage intermediate steps while
+    providing them with immediate access to their complete audiobook conversion.
+    """
+    
+    # Initialize comprehensive tracking variables for the entire conversion process
+    conversion_start_time = time.time()
+    conversion_id = str(uuid.uuid4())[:8]
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    
+    # These variables will track our progress through the complex conversion pipeline
+    temp_file_path = None
+    chapters_folder = None
+    audio_output_folder = None
+    audio_generator = None
+    extracted_chapters = []
+    converted_audio_files = []
+    
+    try:
+        print("\n🎬 Starting enhanced ebook-to-audiobook conversion...")
+        print("=" * 70)
+        print(f"🆔 Conversion ID: {conversion_id}")
+        print(f"⏰ Started at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+        
+        # ==========================================
+        # PHASE 1: FILE RECEPTION AND VALIDATION
+        # ==========================================
+        
+        print("\n📥 Phase 1: Processing uploaded file...")
+        
+        # Validate that we received a file in the request
+        if 'file' not in request.files:
+            print("❌ No file found in request")
+            return jsonify({
+                'success': False,
+                'error': 'No file provided',
+                'code': 'NO_FILE_UPLOADED',
+                'conversion_id': conversion_id
+            }), 400
+        
+        uploaded_file = request.files['file']
+        
+        if uploaded_file.filename == '':
+            print("❌ Empty filename detected")
+            return jsonify({
+                'success': False,
+                'error': 'No file selected',
+                'code': 'EMPTY_FILENAME',
+                'conversion_id': conversion_id
+            }), 400
+        
+        # Extract and validate file information
+        original_filename = uploaded_file.filename
+        file_extension = Path(original_filename).suffix.lower()
+        supported_extensions = {'.pdf', '.epub', '.txt', '.text'}
+        
+        print(f"📁 Original filename: {original_filename}")
+        print(f"📎 File extension: {file_extension}")
+        
+        if file_extension not in supported_extensions:
+            print(f"❌ Unsupported file type: {file_extension}")
+            return jsonify({
+                'success': False,
+                'error': f'Unsupported file type: {file_extension}. Supported types: PDF, EPUB, TXT',
+                'code': 'UNSUPPORTED_FILE_TYPE',
+                'supported_types': list(supported_extensions),
+                'conversion_id': conversion_id
+            }), 400
+        
+        # Validate file size to prevent system overload
+        uploaded_file.seek(0, 2)  # Seek to end to get file size
+        file_size = uploaded_file.tell()
+        uploaded_file.seek(0)  # Reset to beginning for processing
+        
+        max_size = app.config['MAX_CONTENT_LENGTH']
+        if file_size > max_size:
+            print(f"❌ File too large: {file_size} bytes (max: {max_size})")
+            return jsonify({
+                'success': False,
+                'error': f'File size ({file_size // (1024*1024)}MB) exceeds maximum allowed size ({max_size // (1024*1024)}MB)',
+                'code': 'FILE_TOO_LARGE',
+                'max_size_mb': max_size // (1024*1024),
+                'conversion_id': conversion_id
+            }), 413
+        
+        print(f"📊 File size: {file_size:,} bytes ({file_size / (1024*1024):.2f} MB)")
+        
+        # Save the uploaded file to temporary storage for processing
+        safe_filename = secure_filename(original_filename)
+        temp_filename = f"{timestamp}_{conversion_id}_{safe_filename}"
+        temp_file_path = os.path.join(app.config['UPLOAD_FOLDER'], temp_filename)
+        
+        uploaded_file.save(temp_file_path)
+        print(f"💾 Saved to temporary location: {temp_filename}")
+        
+        # ==========================================
+        # PHASE 2: INTELLIGENT CHAPTER EXTRACTION
+        # ==========================================
+        
+        print(f"\n📖 Phase 2: Extracting chapters with intelligent content detection...")
+        
+        try:
+            # Initialize the chapter extraction system
+            chapter_extractor = IntelligentChapterExtractor()
+            extraction_start_time = time.time()
+            
+            print(f"🎯 Beginning intelligent extraction for {file_extension} file...")
+            
+            # Extract chapters using your sophisticated content detection algorithms
+            extracted_chapters = chapter_extractor.extract_chapters_from_file(temp_file_path)
+            
+            extraction_time = time.time() - extraction_start_time
+            print(f"⏱️ Chapter extraction completed in {extraction_time:.2f} seconds")
+            
+            if not extracted_chapters:
+                raise Exception("No readable content could be extracted from the file")
+            
+            print(f"✅ Successfully extracted {len(extracted_chapters)} chapters")
+
+            total_words = sum(chapter['word_count'] for chapter in extracted_chapters)
+            estimated_audio_duration = total_words / (165 / 60)  # 165 words per minute
+
+            print(f"📊 Total content: {total_words:,} words")
+            print(f"⏱️ Estimated audio duration: {estimated_audio_duration:.1f} minutes")
+
+            print(f"\n💾 Phase 3.5: Serializing chapters to individual text files...")
+
+            try:
+                # Create a dedicated folder for this conversion's chapter files
+                chapters_temp_folder = os.path.join(app.config['CHAPTERS_FOLDER'], f"conversion_{timestamp}_{conversion_id}")
+                os.makedirs(chapters_temp_folder, exist_ok=True)
+                
+                print(f"📁 Created chapter files folder: {os.path.basename(chapters_temp_folder)}")
+                
+                # Write each chapter to its own text file
+                serialized_chapter_files = []
+                serialization_start_time = time.time()
+                
+                for chapter in extracted_chapters:
+                    # Create a safe filename for this chapter
+                    chapter_number = chapter['number']
+                    chapter_title = chapter['title']
+                    
+                    # Clean the chapter title for use in filename (remove problematic characters)
+                    safe_title = "".join(c for c in chapter_title if c.isalnum() or c in (' ', '-', '_')).strip()
+                    safe_title = safe_title.replace(' ', '_')[:30]  # Limit length and replace spaces
+                    
+                    # Construct the chapter filename
+                    chapter_filename = f"Chapter_{chapter_number:02d}_{safe_title}.txt"
+                    chapter_file_path = os.path.join(chapters_temp_folder, chapter_filename)
+                    
+                    # Write the chapter content to the file
+                    try:
+                        with open(chapter_file_path, 'w', encoding='utf-8') as chapter_file:
+                            # Write the actual chapter content
+                            chapter_file.write(chapter['content'])
+                        
+                        # Verify the file was created successfully
+                        if os.path.exists(chapter_file_path):
+                            file_size = os.path.getsize(chapter_file_path)
+                            
+                            # Store the file information for Phase 4
+                            serialized_chapter_files.append({
+                                'chapter_number': chapter_number,
+                                'title': chapter_title,
+                                'file_path': chapter_file_path,
+                                'filename': chapter_filename,
+                                'word_count': chapter['word_count'],
+                                'file_size_bytes': file_size
+                            })
+                            
+                            print(f"   ✅ Chapter {chapter_number}: {chapter_filename} ({file_size:,} bytes)")
+                        
+                        else:
+                            print(f"   ❌ Failed to create file for Chapter {chapter_number}")
+                            
+                    except Exception as file_error:
+                        print(f"   ❌ Error writing Chapter {chapter_number}: {str(file_error)}")
+                        continue
+                
+                serialization_time = time.time() - serialization_start_time
+                
+                if not serialized_chapter_files:
+                    raise Exception("No chapter files were successfully created")
+                
+                print(f"✅ Successfully serialized {len(serialized_chapter_files)} chapters to files")
+                print(f"⏱️ Serialization completed in {serialization_time:.2f} seconds")
+                print(f"📁 Chapter files location: {chapters_temp_folder}")
+                
+                # Update the chapters_folder variable for Phase 4 to use
+                chapters_folder = chapters_temp_folder
+                
+            except Exception as serialization_error:
+                print(f"❌ Chapter serialization failed: {str(serialization_error)}")
+                
+                # Clean up temporary file before returning error
+                if temp_file_path and os.path.exists(temp_file_path):
+                    os.remove(temp_file_path)
+                
+                return jsonify({
+                    'success': False,
+                    'error': f'Chapter serialization failed: {str(serialization_error)}',
+                    'code': 'CHAPTER_SERIALIZATION_FAILED',
+                    'conversion_id': conversion_id,
+                    'chapters_extracted': len(extracted_chapters)
+                }), 500
+            
+            # Calculate total content statistics for planning audio conversion
+            total_words = sum(chapter['word_count'] for chapter in extracted_chapters)
+            estimated_audio_duration = total_words / (165 / 60)  # 165 words per minute
+            
+            print(f"📊 Total content: {total_words:,} words")
+            print(f"⏱️ Estimated audio duration: {estimated_audio_duration:.1f} minutes")
+            
+        except Exception as extraction_error:
+            print(f"❌ Chapter extraction failed: {str(extraction_error)}")
+            # Clean up temporary file before returning error
+            if temp_file_path and os.path.exists(temp_file_path):
+                os.remove(temp_file_path)
+            
+            return jsonify({
+                'success': False,
+                'error': f'Chapter extraction failed: {str(extraction_error)}',
+                'code': 'EXTRACTION_FAILED',
+                'conversion_id': conversion_id
+            }), 500
+        
+        # ==========================================
+        # PHASE 3: XTTS NEURAL SYNTHESIS INITIALIZATION
+        # ==========================================
+        
+        print(f"\n🧠 Phase 3: Initializing XTTS neural synthesis system...")
+        
+        try:
+            # Initialize the advanced neural audio generation system
+            print("⏳ Loading XTTS neural network (this may take a moment)...")
+            audio_generator = AdvancedAudiobookGenerator()
+            
+            # Verify that initialization was successful
+            if not audio_generator.model_loaded:
+                raise Exception("XTTS model failed to load properly")
+            
+            if not audio_generator.available_speakers:
+                raise Exception("No speakers were discovered in the XTTS system")
+            
+            print(f"✅ XTTS system initialized successfully!")
+            print(f"🎭 Neural synthesis ready with {len(audio_generator.available_speakers)} available speakers")
+            print(f"⚡ Processing device: {audio_generator.device}")
+            
+            # Show some available speakers for reference
+            sample_speakers = audio_generator.available_speakers[:5]
+            print(f"🎤 Sample speakers: {', '.join(sample_speakers)}")
+
+
+            
+        except Exception as xtts_error:
+            print(f"❌ XTTS initialization failed: {str(xtts_error)}")
+            
+            # Clean up temporary file and extracted data
+            if temp_file_path and os.path.exists(temp_file_path):
+                os.remove(temp_file_path)
+            
+            return jsonify({
+                'success': False,
+                'error': f'Neural synthesis system initialization failed: {str(xtts_error)}',
+                'code': 'XTTS_INITIALIZATION_FAILED',
+                'conversion_id': conversion_id,
+                'troubleshooting': {
+                    'possible_causes': [
+                        'XTTS model download interrupted',
+                        'Insufficient GPU memory',
+                        'Network connectivity issues',
+                        'CUDA compatibility problems'
+                    ],
+                    'suggestions': [
+                        'Check internet connection for model download',
+                        'Restart the application to retry initialization',
+                        'Free up GPU memory by closing other applications',
+                        'Run the XTTS diagnostic script to verify system status'
+                    ]
+                }
+            }), 500
+        
+        # ==========================================
+        # PHASE 4: AUDIO CONVERSION PROCESSING
+        # ==========================================
+        
+        print(f"\n🎵 Phase 4: Converting chapters to neural audio...")
+        
+        # Create organized folder structure for the complete audiobook
+        audio_output_folder = os.path.join(app.config['AUDIOBOOKS_FOLDER'], f"audiobook_{timestamp}_{conversion_id}")
+        chapters_audio_folder = os.path.join(audio_output_folder, "chapters")
+        os.makedirs(chapters_audio_folder, exist_ok=True)
+        
+        print(f"📁 Audio output folder: {audio_output_folder}")
+        
+        # Process each chapter through the complete audio conversion pipeline
+        audio_conversion_start_time = time.time()
+        converted_audio_files = []
+        total_audio_duration = 0
+        total_processed_words = 0
+        
+        # Use intelligent defaults for conversion parameters
+        # (Since this is a file upload request, not JSON, we use defaults)
+        word_limit_per_chapter = 50  # No word limit for full conversion youcanchangethis
+        speaker_preference = 'female_narrator'  # Default to first available speaker
+        max_chapters = 5  # Convert all chapters found youcanchangethis
+        
+        print(f"🎯 Conversion settings:")
+        print(f"   Word limit per chapter: {word_limit_per_chapter or 'No limit'}")
+        print(f"   Preferred speaker: {speaker_preference}")
+        print(f"   Max chapters to convert: {max_chapters or 'All chapters'}")
+        
+        # Process each serialized chapter file through the neural synthesis pipeline
+        chapters_to_process = serialized_chapter_files[:max_chapters] if max_chapters else serialized_chapter_files
+
+        for chapter_index, chapter_info in enumerate(chapters_to_process):
+            chapter_start_time = time.time()
+            chapter_number = chapter_info['chapter_number']
+            chapter_title = chapter_info['title']
+            chapter_file_path = chapter_info['file_path']  # This is the key change!
+            chapter_word_count = chapter_info['word_count']
+            
+            print(f"\n📖 Processing Chapter {chapter_number}: {chapter_title}")
+            print(f"   📊 Words: {chapter_word_count:,}")
+            
+            try:
+                temp_chapter_path = chapter_file_path
+                print(f"   📄 Using serialized file: {os.path.basename(temp_chapter_path)}")
+                
+                # Define output path for this chapter's audio
+                audio_filename = f"Chapter_{chapter_number:02d}_{secure_filename(chapter_title[:30])}.wav"
+                chapter_audio_path = os.path.join(chapters_audio_folder, audio_filename)
+                
+                print(f"   🎵 Generating audio: {audio_filename}")
+                
+                # Convert this chapter to high-quality neural audio
+                conversion_result = audio_generator.convert_chapter_to_audio(
+                    chapter_text_file_path=temp_chapter_path,
+                    output_audio_path=chapter_audio_path,
+                    word_limit=word_limit_per_chapter,
+                    speaker=speaker_preference
+                )
+                
+                
+                # Process the conversion results
+                if conversion_result['success']:
+                    chapter_processing_time = time.time() - chapter_start_time
+                    
+                    # Verify the audio file was created successfully
+                    if os.path.exists(chapter_audio_path):
+                        audio_file_size = os.path.getsize(chapter_audio_path)
+                        
+                        if audio_file_size > 1000:  # Ensure file has substantial content
+                            # Record successful conversion details
+                            chapter_audio_info = {
+                                'chapter_number': chapter_number,
+                                'title': chapter_title,
+                                'audio_filename': audio_filename,
+                                'audio_file_path': chapter_audio_path,  # Keep the full path for server use
+                                # Add this new field for frontend consumption
+                                'audio_url': f'/api/audio/{os.path.relpath(chapter_audio_path, app.config["AUDIOBOOKS_FOLDER"]).replace(os.sep, "/")}',
+                                'original_word_count': chapter_word_count,
+                                'processed_word_count': conversion_result['processing_stats']['processed_word_count'],
+                                'audio_file_size_bytes': audio_file_size,
+                                'audio_file_size_mb': round(audio_file_size / (1024*1024), 2),
+                                'estimated_duration_minutes': conversion_result['processing_stats']['estimated_audio_duration_minutes'],
+                                'processing_time_seconds': round(chapter_processing_time, 2),
+                                'speaker_used': conversion_result['neural_synthesis']['speaker'],
+                                'neural_quality': conversion_result['neural_synthesis']['quality_level']
+                            }
+                            
+                            converted_audio_files.append(chapter_audio_info)
+                            total_audio_duration += conversion_result['processing_stats']['estimated_audio_duration_minutes']
+                            total_processed_words += conversion_result['processing_stats']['processed_word_count']
+                            
+                            print(f"   ✅ Conversion successful!")
+                            print(f"   📊 Audio size: {chapter_audio_info['audio_file_size_mb']:.2f} MB")
+                            print(f"   ⏱️ Duration: ~{chapter_audio_info['estimated_duration_minutes']:.1f} minutes")
+                            print(f"   🎭 Speaker: {chapter_audio_info['speaker_used']}")
+                            
+                        else:
+                            print(f"   ❌ Audio file too small ({audio_file_size} bytes) - conversion may have failed")
+                            continue
+                    else:
+                        print(f"   ❌ Audio file was not created - conversion failed")
+                        continue
+                
+                else:
+                    print(f"   ❌ Conversion failed: {conversion_result.get('error', 'Unknown error')}")
+                    continue
+                    
+            except Exception as chapter_error:
+                print(f"   ❌ Chapter processing failed: {str(chapter_error)}")
+                # Continue with next chapter rather than failing the entire conversion
+                continue
+        
+        audio_conversion_time = time.time() - audio_conversion_start_time
+        
+        # ==========================================
+        # PHASE 5: FINALIZATION AND RESPONSE PREPARATION
+        # ==========================================
+        
+        print(f"\n🎉 Phase 5: Finalizing audiobook conversion...")
+        
+        # Clean up temporary files and resources
+        try:
+            if temp_file_path and os.path.exists(temp_file_path):
+                os.remove(temp_file_path)
+                print("🗑️ Cleaned up temporary upload file")
+            
+            if audio_generator:
+                audio_generator.cleanup_model()
+                print("🧹 Cleaned up XTTS neural synthesis resources")
+                
+        except Exception as cleanup_error:
+            print(f"⚠️ Cleanup warning: {cleanup_error}")
+            # Don't fail the conversion for cleanup issues
+        
+        # Calculate comprehensive conversion statistics
+        total_conversion_time = time.time() - conversion_start_time
+        successful_chapters = len(converted_audio_files)
+        total_chapters = len(extracted_chapters)
+        
+        # Verify that we successfully converted at least some chapters
+        if successful_chapters == 0:
+            return jsonify({
+                'success': False,
+                'error': 'No chapters were successfully converted to audio',
+                'code': 'NO_AUDIO_GENERATED',
+                'conversion_id': conversion_id,
+                'chapters_attempted': total_chapters
+            }), 500
+        
+        # Calculate total audio file size
+        total_audio_size_bytes = sum(chapter['audio_file_size_bytes'] for chapter in converted_audio_files)
+        total_audio_size_mb = round(total_audio_size_bytes / (1024*1024), 2)
+        
+        print(f"✅ Audiobook conversion completed successfully!")
+        print(f"📊 Conversion summary:")
+        print(f"   Chapters converted: {successful_chapters}/{total_chapters}")
+        print(f"   Total audio duration: ~{total_audio_duration:.1f} minutes")
+        print(f"   Total audio size: {total_audio_size_mb:.2f} MB")
+        print(f"   Total processing time: {total_conversion_time:.1f} seconds")
+        
+        # Prepare comprehensive response with all conversion details
+        audiobook_response = {
+            'success': True,
+            'message': f'Successfully converted {successful_chapters} chapters from {original_filename} to audiobook',
+            'conversion_id': conversion_id,
+            'timestamp': datetime.now().isoformat(),
+            
+            # Original file information
+            'source_file': {
+                'original_filename': original_filename,
+                'file_type': file_extension,
+                'file_size_bytes': file_size,
+                'file_size_mb': round(file_size / (1024*1024), 2)
+            },
+            
+            # Comprehensive processing statistics
+            'conversion_stats': {
+                'total_chapters_found': total_chapters,
+                'chapters_successfully_converted': successful_chapters,
+                'conversion_success_rate': round((successful_chapters / total_chapters) * 100, 1),
+                'total_processing_time_seconds': round(total_conversion_time, 2),
+                'audio_generation_time_seconds': round(audio_conversion_time, 2),
+                'chapter_extraction_time_seconds': round(extraction_time, 2),
+                'total_words_processed': total_processed_words,
+                'processing_efficiency_words_per_second': round(total_processed_words / total_conversion_time, 1)
+            },
+            
+            # Complete audiobook information
+            'audiobook': {
+                'total_duration_minutes': round(total_audio_duration, 1),
+                'total_size_bytes': total_audio_size_bytes,
+                'total_size_mb': total_audio_size_mb,
+                'chapters_folder': chapters_audio_folder,
+                'chapter_count': successful_chapters,
+                'format': 'WAV',
+                'quality': 'Neural synthesis (XTTS v2)',
+                'sample_rate': '24kHz'
+            },
+            
+            # Detailed chapter information
+            'chapters': converted_audio_files,
+            
+            # Technical processing details
+            'processing_details': {
+                'extraction_method': 'intelligent_chapter_detection',
+                'audio_synthesis': 'XTTS_v2_neural_synthesis',
+                'device_used': audio_generator.device if audio_generator else 'unknown',
+                'speakers_available': len(audio_generator.available_speakers) if audio_generator else 0,
+                'neural_quality_applied': True,
+                'front_matter_skipped': True,
+                'chapter_boundaries_detected': successful_chapters > 1
+            },
+            
+            # User guidance for next steps
+            'next_steps': {
+                'download_individual_chapters': f'Access individual chapter audio files in: {chapters_audio_folder}',
+                'listen_to_audiobook': 'Play the generated audio files in order to listen to your complete audiobook',
+                'file_organization': 'Chapter files are numbered sequentially for easy playlist creation',
+                'quality_verification': 'Listen to the first chapter to verify audio quality meets your expectations'
+            }
+        }
+        
+        print("=" * 70)
+        print(f"🎧 Audiobook conversion completed for: {original_filename}")
+        print(f"📁 Audio files location: {chapters_audio_folder}")
+        print(f"🎵 Ready to listen to {successful_chapters} chapters!")
+        
+        return jsonify(audiobook_response)
+        
+    except Exception as e:
+        print(f"❌ Enhanced conversion process failed: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        
+        # Perform comprehensive cleanup on any failure
+        cleanup_operations = []
+        
+        try:
+            if temp_file_path and os.path.exists(temp_file_path):
+                os.remove(temp_file_path)
+                cleanup_operations.append("Removed temporary upload file")
+        except:
+            pass
+        
+        try:
+            if audio_generator:
+                audio_generator.cleanup_model()
+                cleanup_operations.append("Cleaned up XTTS resources")
+        except:
+            pass
+        
+        # Return comprehensive error information for debugging
+        return jsonify({
+            'success': False,
+            'error': f'Enhanced conversion process failed: {str(e)}',
+            'code': 'ENHANCED_CONVERSION_FAILED',
+            'conversion_id': conversion_id,
+            'processing_time_seconds': time.time() - conversion_start_time,
+            'cleanup_performed': cleanup_operations,
+            'troubleshooting': {
+                'error_type': type(e).__name__,
+                'suggestion': 'Check server logs for detailed error information',
+                'common_solutions': [
+                    'Verify XTTS system is properly installed',
+                    'Check available disk space for audio files',
+                    'Ensure GPU memory is available for neural synthesis',
+                    'Try with a smaller file or fewer chapters'
+                ]
+            }
+        }), 500
 
 
 

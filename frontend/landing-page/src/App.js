@@ -1,6 +1,451 @@
-// src/App.js - EbookVoice AI Landing Page - HONEST STATISTICS VERSION
+// src/App.js - EbookVoice AI Landing Page - IMPROVED METRICS UI
 import React, { useState, useEffect, useRef } from 'react';
 import './App.css';
+
+// Add custom styles for improved metrics layout and player
+const customStyles = `
+  .summary-stats-improved {
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 16px;
+    padding: 24px;
+    margin: 20px 0;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+  }
+  
+  .stat-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  }
+  
+  .stat-row:last-child {
+    border-bottom: none;
+  }
+  
+  .stat-label {
+    font-size: 14px;
+    color: #cccccc;
+    font-weight: 500;
+    text-align: left;
+  }
+  
+  .stat-value {
+    font-size: 16px;
+    color: #ffffff;
+    font-weight: 700;
+    text-align: right;
+  }
+  
+  .stat-value.voice-name {
+    color: #667eea;
+    font-size: 14px;
+    font-weight: 600;
+    max-width: 150px;
+    text-align: right;
+    word-break: break-word;
+  }
+  
+  /* Improved Audio Player Styles */
+  .player-header {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+    padding: 20px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  }
+  
+  .book-info {
+    text-align: center;
+    width: 100%;
+  }
+  
+  .player-center-controls {
+    display: flex;
+    justify-content: center;
+    width: 100%;
+  }
+  
+  .chapters-list-btn {
+    background: rgba(102, 126, 234, 0.15);
+    border: 1px solid rgba(102, 126, 234, 0.3);
+    border-radius: 12px;
+    padding: 10px 16px;
+    color: #ffffff;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  
+  .chapters-list-btn:hover {
+    background: rgba(102, 126, 234, 0.25);
+    border-color: rgba(102, 126, 234, 0.5);
+    transform: translateY(-2px);
+  }
+  
+  .chapters-icon {
+    font-size: 16px;
+  }
+  
+  .chapters-text {
+    font-weight: 600;
+  }
+  
+  .chapters-count {
+    color: #cccccc;
+    font-size: 13px;
+  }
+  
+  /* Fixed Audio Player Progress Styles */
+  .progress-section {
+    padding: 16px 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  
+  .time-info {
+    display: flex;
+    justify-content: space-between;
+    font-size: 14px;
+    color: #cccccc;
+    font-weight: 500;
+  }
+  
+  .seek-bar {
+    position: relative;
+    width: 100%;
+    height: 6px;
+    cursor: pointer;
+    padding: 8px 0;
+  }
+  
+  .seek-track {
+    position: relative;
+    width: 100%;
+    height: 6px;
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 3px;
+    overflow: visible;
+  }
+  
+  .seek-progress {
+    height: 100%;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border-radius: 3px;
+    transition: width 0.1s ease;
+  }
+  
+  .seek-handle {
+    position: absolute;
+    top: 50%;
+    width: 16px;
+    height: 16px;
+    background: #ffffff;
+    border: 2px solid #667eea;
+    border-radius: 50%;
+    transform: translateY(-50%);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+    transition: all 0.2s ease;
+    cursor: pointer;
+  }
+  
+  .seek-handle:hover {
+    transform: translateY(-50%) scale(1.2);
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+  }
+  
+  /* Clean Upgrade Prompt Styles */
+  .upgrade-prompt.enhanced {
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 20px;
+    padding: 30px;
+    margin: 30px 0;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    text-align: center;
+  }
+  
+  .upgrade-prompt.enhanced h4 {
+    margin: 0 0 24px 0;
+    color: #ffffff;
+    font-size: 24px;
+    font-weight: 700;
+  }
+  
+  .upgrade-comparison {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 20px;
+    margin: 24px 0;
+    flex-wrap: wrap;
+  }
+  
+  .current-tier-info, .next-tier-info {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+  }
+  
+  .tier-badge {
+    padding: 8px 16px;
+    border-radius: 20px;
+    font-size: 14px;
+    font-weight: 600;
+  }
+  
+  .tier-badge.sample {
+    background: rgba(255, 255, 255, 0.1);
+    color: #cccccc;
+  }
+  
+  .tier-badge.free {
+    background: rgba(102, 126, 234, 0.2);
+    color: #667eea;
+  }
+  
+  .tier-details {
+    font-size: 13px;
+    color: #cccccc;
+    text-align: center;
+  }
+  
+  .arrow {
+    font-size: 20px;
+    color: #667eea;
+    font-weight: bold;
+  }
+  
+  .upgrade-benefits {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin: 24px 0;
+    text-align: center;
+    max-width: 300px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+  
+  .benefit-item {
+    color: #ffffff;
+    font-size: 15px;
+    font-weight: 500;
+  }
+  
+  .upgrade-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-top: 30px;
+  }
+  
+  .upgrade-btn-primary {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border: none;
+    padding: 16px 24px;
+    border-radius: 12px;
+    font-weight: 600;
+    font-size: 16px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+  }
+  
+  .upgrade-btn-primary:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 15px 35px rgba(102, 126, 234, 0.4);
+  }
+  
+  .try-another-btn {
+    background: transparent;
+    color: #cccccc;
+    border: 1px solid #444;
+    padding: 12px 20px;
+    border-radius: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.3s ease;
+  }
+  
+  .try-another-btn:hover {
+    border-color: #667eea;
+    color: #ffffff;
+  }
+  
+  /* Clean Error Styles */
+  .conversion-error {
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 20px;
+    padding: 40px 30px;
+    margin: 30px 0;
+    border: 1px solid rgba(255, 107, 107, 0.2);
+    text-align: center;
+  }
+  
+  .error-animation {
+    margin-bottom: 30px;
+  }
+  
+  .error-icon {
+    font-size: 64px;
+    margin-bottom: 20px;
+    display: block;
+  }
+  
+  .conversion-error h3 {
+    color: #ff6b6b;
+    font-size: 24px;
+    font-weight: 700;
+    margin: 0 0 16px 0;
+  }
+  
+  .error-message {
+    background: rgba(255, 107, 107, 0.1);
+    border: 1px solid rgba(255, 107, 107, 0.2);
+    border-radius: 12px;
+    padding: 20px;
+    margin: 20px 0;
+    color: #ffffff;
+    font-size: 16px;
+    line-height: 1.5;
+    text-align: left;
+  }
+  
+  .error-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-top: 30px;
+  }
+  
+  .retry-btn {
+    background: linear-gradient(135deg, #ff6b6b 0%, #ff8787 100%);
+    color: white;
+    border: none;
+    padding: 16px 24px;
+    border-radius: 12px;
+    font-weight: 600;
+    font-size: 16px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+  }
+  
+  .retry-btn:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 15px 35px rgba(255, 107, 107, 0.4);
+  }
+  
+  .reset-btn {
+    background: transparent;
+    color: #cccccc;
+    border: 1px solid #444;
+    padding: 12px 20px;
+    border-radius: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.3s ease;
+  }
+  
+  .reset-btn:hover {
+    border-color: #ff6b6b;
+    color: #ffffff;
+  }
+  
+  @media (max-width: 768px) {
+    .summary-stats-improved {
+      padding: 20px 16px;
+    }
+    
+    .stat-label {
+      font-size: 13px;
+    }
+    
+    .stat-value {
+      font-size: 15px;
+    }
+    
+    .stat-value.voice-name {
+      font-size: 13px;
+      max-width: 120px;
+    }
+    
+    .chapters-list-btn {
+      padding: 8px 14px;
+      font-size: 13px;
+    }
+    
+    .chapters-icon {
+      font-size: 14px;
+    }
+    
+    .upgrade-prompt.enhanced {
+      padding: 24px 20px;
+      margin: 24px 0;
+    }
+    
+    .upgrade-prompt.enhanced h4 {
+      font-size: 20px;
+    }
+    
+    .upgrade-comparison {
+      gap: 16px;
+    }
+    
+    .arrow {
+      transform: rotate(90deg);
+      font-size: 18px;
+    }
+    
+    .upgrade-benefits {
+      text-align: center;
+    }
+    
+    .upgrade-btn-primary {
+      padding: 14px 20px;
+      font-size: 15px;
+    }
+    
+    .conversion-error {
+      padding: 30px 20px;
+      margin: 20px 0;
+    }
+    
+    .conversion-error h3 {
+      font-size: 20px;
+    }
+    
+    .error-message {
+      padding: 16px;
+      font-size: 15px;
+    }
+    
+    .retry-btn {
+      padding: 14px 20px;
+      font-size: 15px;
+    }
+    
+    .reset-btn {
+      padding: 10px 16px;
+      font-size: 14px;
+    }
+  }
+`;
+
+// Add the styles to the document head
+if (typeof document !== 'undefined') {
+  const styleSheet = document.createElement('style');
+  styleSheet.type = 'text/css';
+  styleSheet.innerText = customStyles;
+  document.head.appendChild(styleSheet);
+}
 
 // Custom Audio Player Component - iPhone 12 Pro Optimized
 const CustomAudioPlayer = ({ fileName, realChapters, totalDuration, conversionResult }) => {
@@ -54,15 +499,31 @@ const CustomAudioPlayer = ({ fileName, realChapters, totalDuration, conversionRe
         setCurrentTime(audio.currentTime);
       };
       
-      const handleEnded = () => {
-        // Automatically move to next chapter when current one ends
-        if (currentChapterIndex < realChapters.length - 1) {
-          setCurrentChapterIndex(prev => prev + 1);
-        } else {
-          setIsPlaying(false);
-          setCurrentTime(0);
-        }
-      };
+  // Handle when current chapter ends - auto-advance with smooth playback
+  const handleEnded = () => {
+    console.log(`🎵 Chapter ${currentChapterIndex + 1} finished, checking for next chapter...`);
+    
+    // Automatically move to next chapter when current one ends
+    if (currentChapterIndex < realChapters.length - 1) {
+      const nextChapterIndex = currentChapterIndex + 1;
+      console.log(`🎵 Auto-advancing to Chapter ${nextChapterIndex + 1}`);
+      
+      // Update to next chapter and reset time
+      setCurrentChapterIndex(nextChapterIndex);
+      setCurrentTime(0);
+      
+      // Continue playing the next chapter automatically for smooth experience
+      setIsPlaying(true);
+    } else {
+      console.log('🎵 Reached end of audiobook');
+      // End of audiobook - stop playing and reset
+      setIsPlaying(false);
+      setCurrentTime(0);
+      
+      // Optional: Reset to first chapter for replay
+      setCurrentChapterIndex(0);
+    }
+  };
       
       const handleError = (e) => {
         console.error('Audio playback error:', e);
@@ -196,12 +657,19 @@ const CustomAudioPlayer = ({ fileName, realChapters, totalDuration, conversionRe
           {isLoading && <p className="loading-indicator">Loading audio...</p>}
           {audioError && <p className="error-indicator">⚠️ {audioError}</p>}
         </div>
-        <button 
-          className="chapters-btn"
-          onClick={() => setShowChapters(!showChapters)}
-        >
-          📑 ({chapters.length})
-        </button>
+        
+        {/* Centered Chapter List Button */}
+        <div className="player-center-controls">
+          <button 
+            className="chapters-list-btn"
+            onClick={() => setShowChapters(!showChapters)}
+            title="View chapter list"
+          >
+            <span className="chapters-icon">📋</span>
+            <span className="chapters-text">Chapters</span>
+            <span className="chapters-count">({chapters.length})</span>
+          </button>
+        </div>
       </div>
       
       {/* Main Player Controls - Enhanced for real audio */}
@@ -231,7 +699,7 @@ const CustomAudioPlayer = ({ fileName, realChapters, totalDuration, conversionRe
         </button>
       </div>
       
-      {/* Progress Section - Real audio progress */}
+      {/* Progress Section - Fixed playhead alignment */}
       <div className="progress-section">
         <div className="time-info">
           <span>{formatTime(currentTime)}</span>
@@ -242,9 +710,13 @@ const CustomAudioPlayer = ({ fileName, realChapters, totalDuration, conversionRe
             <div 
               className="seek-progress" 
               style={{ width: `${duration > 0 ? (currentTime / duration) * 100 : 0}%` }}
-            >
-              <div className="seek-handle" style={{ right: 0 }}></div>
-            </div>
+            />
+            <div 
+              className="seek-handle" 
+              style={{ 
+                left: `calc(${duration > 0 ? (currentTime / duration) * 100 : 0}% - 8px)`
+              }}
+            />
           </div>
         </div>
       </div>
@@ -297,10 +769,39 @@ const CustomAudioPlayer = ({ fileName, realChapters, totalDuration, conversionRe
                   {chapter.title || chapter.title}
                 </div>
                 <div className="chapter-duration">
-                  {chapter.estimated_duration_minutes 
-                    ? `${chapter.estimated_duration_minutes.toFixed(1)} min`
-                    : formatTime(chapter.duration || 30)
-                  }
+                  {(() => {
+                    // Debug: Log chapter data to see what we're working with
+                    console.log('Chapter duration data:', {
+                      estimated_duration_minutes: chapter.estimated_duration_minutes,
+                      duration: chapter.duration,
+                      audio_duration: chapter.audio_duration,
+                      chapter_title: chapter.title
+                    });
+                    
+                    // Check multiple possible duration fields and apply smart logic
+                    let durationValue = chapter.estimated_duration_minutes || 
+                                      chapter.duration || 
+                                      chapter.audio_duration || 
+                                      30; // fallback
+                    
+                    let totalSeconds;
+                    
+                    // If the value is very large (>60), it's likely already in seconds
+                    if (durationValue > 60) {
+                      totalSeconds = Math.round(durationValue);
+                    } else {
+                      // Otherwise convert from minutes to seconds
+                      totalSeconds = Math.round(durationValue * 60);
+                    }
+                    
+                    if (totalSeconds >= 60) {
+                      const minutes = Math.floor(totalSeconds / 60);
+                      const seconds = totalSeconds % 60;
+                      return `${minutes}min ${seconds}sec`;
+                    } else {
+                      return `${totalSeconds}sec`;
+                    }
+                  })()}
                 </div>
               </div>
               {index === currentChapterIndex && isPlaying && (
@@ -481,7 +982,7 @@ const simulateConversion = async () => {
     setCurrentStage('Uploading to neural AI processing server...');
 
     // Send clean file upload request - your backend will handle everything else
-    const response = await fetch('api/fullconvert', {
+    const response = await fetch('api/trailConvert', {
       method: 'POST',
       body: formData
       // Note: No headers needed - browser sets correct Content-Type for FormData
@@ -518,7 +1019,7 @@ const simulateConversion = async () => {
       await new Promise(resolve => setTimeout(resolve, 1000));
       
       setProgress(100);
-      setCurrentStage('🎉 Your audiobook is ready!');
+      setCurrentStage('🎉 Your audiobook sample is ready!');
 
       // Store the complete result for detailed display
       setConversionResult(result);
@@ -553,18 +1054,30 @@ const simulateConversion = async () => {
     let userMessage = 'Audiobook conversion failed. ';
     
     if (error.message.includes('500')) {
-      userMessage += 'The AI processing server encountered an error. Please try again in a moment.';
+      // Extract clean error message from JSON response
+      try {
+        const errorMatch = error.message.match(/:\s*({.*})/);
+        if (errorMatch) {
+          const errorData = JSON.parse(errorMatch[1]);
+          userMessage = errorData.error || 'The AI processing server encountered an error.';
+        } else {
+          userMessage = 'The AI processing server encountered an error. Please try again in a moment.';
+        }
+      } catch (parseError) {
+        userMessage = 'The AI processing server encountered an error. Please try again in a moment.';
+      }
     } else if (error.message.includes('413')) {
-      userMessage += 'Your file is too large. Please try a file smaller than 50MB.';
+      userMessage = 'Your file is too large. Please try a file smaller than 50MB.';
     } else if (error.message.includes('400')) {
-      userMessage += 'Invalid file format. Please upload a PDF, EPUB, or TXT file.';
+      userMessage = 'Invalid file format. Please upload a PDF, EPUB, or TXT file.';
     } else if (error.message.includes('Failed to fetch')) {
-      userMessage += 'Cannot connect to the server. Please check your internet connection and try again.';
+      userMessage = 'Cannot connect to the server. Please check your internet connection and try again.';
     } else {
-      userMessage += error.message;
+      userMessage = error.message;
     }
     
-    alert(userMessage);
+    // Set clean error message for UI display
+    setConversionError(userMessage);
   }
 };
 
@@ -594,7 +1107,7 @@ const resetDemo = () => {
           </div>
         </div>
         <h3>Drop your ebook here or tap to upload</h3>
-        <p>PDF, EPUB, TXT • 2-min preview • 5MB max</p>
+        <p>PDF, EPUB, TXT • Sample preview • 5MB max</p>
         <input
           id="file-input"
           type="file"
@@ -611,7 +1124,7 @@ const resetDemo = () => {
         </div>
         <div className="demo-feature">
           <span className="feature-icon">⚡</span>
-          <span>5 minutes</span>
+          <span>Fast Sample</span>
         </div>
         <div className="demo-feature">
           <span className="feature-icon">🎯</span>
@@ -628,11 +1141,11 @@ const resetDemo = () => {
         <div className="file-icon">📄</div>
         <div className="file-info">
           <h4>{file.name}</h4>
-          <p>{(file.size / 1024 / 1024).toFixed(2)} MB • Ready for AI conversion</p>
+          <p>{(file.size / 1024 / 1024).toFixed(2)} MB • Ready for sample conversion</p>
         </div>
       </div>
       <button className="convert-btn" onClick={simulateConversion}>
-        🎙️ Convert with AI
+        🎙️ Generate Audio Sample
       </button>
       <button className="reset-btn" onClick={resetDemo}>
         Choose Different File
@@ -654,7 +1167,7 @@ const resetDemo = () => {
         </div>
         
         <div className="progress-info">
-          <h3>AI Converting Your Book</h3>
+          <h3>AI Creating Your Sample</h3>
           <p className="stage-message">{currentStage}</p>
           
           <div className="progress-container">
@@ -704,35 +1217,50 @@ const resetDemo = () => {
       <div className="conversion-complete enhanced">
         <div className="success-animation">
           <div className="success-icon">🎉</div>
-          <h3>Professional Audiobook Created!</h3>
-          <p>Your book has been converted using advanced neural AI synthesis</p>
+          <h3>Audio Sample Created!</h3>
+          <p>Experience the first part of your audiobook with AI narration</p>
         </div>
 
-        {/* Show detailed conversion statistics */}
+        {/* Show detailed conversion statistics - Improved Layout */}
         <div className="conversion-summary">
-          <div className="summary-stats">
-            <div className="stat-item">
-              <span className="stat-number">{conversionResult.audiobook.chapter_count}</span>
-              <span className="stat-label">Chapters</span>
+          <div className="summary-stats-improved">
+            <div className="stat-row">
+              <span className="stat-label">Completed Chapters</span>
+              <span className="stat-value">{conversionResult.audiobook.chapter_count}</span>
             </div>
-            <div className="stat-item">
-              <span className="stat-number">{Math.round(conversionResult.audiobook.total_duration_minutes)}</span>
-              <span className="stat-label">Minutes</span>
+            <div className="stat-row">
+              <span className="stat-label">Audio Duration</span>
+              <span className="stat-value">
+                {(() => {
+                  // Check if the value is already in seconds or minutes
+                  let totalSeconds;
+                  
+                  // If the value is very large, it's likely already in seconds
+                  if (conversionResult.audiobook.total_duration_minutes > 60) {
+                    totalSeconds = Math.round(conversionResult.audiobook.total_duration_minutes);
+                  } else {
+                    // Otherwise convert from minutes to seconds
+                    totalSeconds = Math.round(conversionResult.audiobook.total_duration_minutes * 60);
+                  }
+                  
+                  if (totalSeconds >= 60) {
+                    const minutes = Math.floor(totalSeconds / 60);
+                    const seconds = totalSeconds % 60;
+                    return `${minutes}min ${seconds}sec`;
+                  } else {
+                    return `${totalSeconds}sec`;
+                  }
+                })()}
+              </span>
             </div>
-            <div className="stat-item">
-              <span className="stat-number">{conversionResult.audiobook.total_size_mb}</span>
-              <span className="stat-label">MB</span>
+            <div className="stat-row">
+              <span className="stat-label">File Size</span>
+              <span className="stat-value">{conversionResult.audiobook.total_size_mb} MB</span>
             </div>
-            <div className="stat-item">
-              <span className="stat-number">{Math.round(conversionResult.conversion_stats.conversion_success_rate)}%</span>
-              <span className="stat-label">Success</span>
+            <div className="stat-row">
+              <span className="stat-label">Voice Used</span>
+              <span className="stat-value voice-name">{conversionResult.chapters[0]?.speaker_used || 'AI Voice'}</span>
             </div>
-          </div>
-          
-          <div className="quality-indicators">
-            <div className="quality-badge">🧠 Neural AI</div>
-            <div className="quality-badge">🎭 {conversionResult.chapters[0]?.speaker_used}</div>
-            <div className="quality-badge">⚡ {conversionResult.processing_details.device_used.toUpperCase()}</div>
           </div>
         </div>
 
@@ -743,47 +1271,38 @@ const resetDemo = () => {
           totalDuration={conversionResult.audiobook.total_duration_minutes}
         />
 
-        {/* Show actual chapters from the conversion */}
         <div className="chapters-overview">
-          <h4>📚 Your Audiobook Chapters</h4>
-          <div className="chapters-list-summary">
-            {conversionResult.chapters.slice(0, 4).map((chapter, index) => (
-              <div key={index} className="chapter-summary-item">
-                <span className="chapter-number">Ch {chapter.chapter_number}</span>
-                <span className="chapter-title">{chapter.title.substring(0, 30)}...</span>
-                <span className="chapter-duration">{chapter.estimated_duration_minutes.toFixed(1)}min</span>
-              </div>
-            ))}
-            {conversionResult.chapters.length > 4 && (
-              <div className="more-chapters">
-                + {conversionResult.chapters.length - 4} more chapters
-              </div>
-            )}
-          </div>
+          <h4>📚 Audio Sample from Your Book</h4>
         </div>
 
-        {/* Enhanced upgrade prompt with real data */}
+        {/* Simplified upgrade prompt with clean design */}
         <div className="upgrade-prompt enhanced">
-          <h4>🚀 Your Professional Audiobook is Ready!</h4>
-          <div className="upgrade-features">
-            <span>✓ {conversionResult.audiobook.chapter_count} chapters professionally converted</span>
-            <span>✓ {Math.round(conversionResult.audiobook.total_duration_minutes)} minutes of neural-quality audio</span>
-            <span>✓ AI voice: {conversionResult.chapters[0]?.speaker_used}</span>
-            <span>✓ Smart chapter detection and navigation</span>
+          <h4>🚀 Ready for More?</h4>
+          
+          <div className="upgrade-comparison">
+            <div className="current-tier-info">
+              <span className="tier-badge sample">Sample</span>
+              <span className="tier-details">5 chapters • ~50 words each</span>
+            </div>
+            <div className="arrow">→</div>
+            <div className="next-tier-info">
+              <span className="tier-badge free">Free Account</span>
+              <span className="tier-details">10 chapters • 250 words each</span>
+            </div>
           </div>
           
-          <div className="conversion-quality-info">
-            <p>🎧 <strong>Audio Quality:</strong> {conversionResult.audiobook.quality}</p>
-            <p>⚡ <strong>Processing:</strong> Completed in {conversionResult.conversion_stats.total_processing_time_seconds}s</p>
-            <p>📊 <strong>Efficiency:</strong> {Math.round(conversionResult.conversion_stats.processing_efficiency_words_per_second)} words/second</p>
+          <div className="upgrade-benefits">
+            <div className="benefit-item">✓ 10x more content per book</div>
+            <div className="benefit-item">✓ Personal audiobook library</div>
+            <div className="benefit-item">✓ Save & manage conversions</div>
           </div>
           
-          <div className="upgrade-buttons">
-            <button className="upgrade-btn">
-              📥 Download Complete Audiobook - £19/month
+          <div className="upgrade-actions">
+            <button className="upgrade-btn-primary">
+              Sign Up Free - Get 10 Chapters
             </button>
             <button className="try-another-btn" onClick={resetDemo}>
-              🔄 Convert Another Book
+              Try Another Book
             </button>
           </div>
         </div>
@@ -795,10 +1314,10 @@ const resetDemo = () => {
             <div className="tech-info">
               <p><strong>Neural Model:</strong> {conversionResult.processing_details.audio_synthesis}</p>
               <p><strong>Processing Device:</strong> {conversionResult.processing_details.device_used}</p>
-              <p><strong>Words Processed:</strong> {conversionResult.conversion_stats.total_words_processed.toLocaleString()}</p>
+              <p><strong>Sample Words Processed:</strong> {conversionResult.conversion_stats.total_words_processed.toLocaleString()}</p>
               <p><strong>Sample Rate:</strong> {conversionResult.audiobook.sample_rate}</p>
               <p><strong>File Format:</strong> {conversionResult.audiobook.format}</p>
-              <p><strong>Audio Files Location:</strong> {conversionResult.audiobook.chapters_folder}</p>
+              <p><strong>Detection Success:</strong> {Math.round(conversionResult.conversion_stats.conversion_success_rate)}% chapter accuracy</p>
             </div>
           </details>
         </div>
@@ -811,23 +1330,27 @@ const resetDemo = () => {
     <div className="conversion-complete">
       <div className="success-animation">
         <div className="success-icon">🎉</div>
-        <h3>Conversion Successful!</h3>
-        <p>Your audiobook demo is ready to play</p>
+        <h3>Sample Created Successfully!</h3>
+        <p>Your audiobook preview is ready to play</p>
       </div>
       
       <CustomAudioPlayer fileName={file?.name} />
       
       <div className="upgrade-prompt">
-        <h4>🚀 Unlock Full Features</h4>
+        <h4>🚀 Want More Content?</h4>
         <div className="upgrade-features">
-          <span>✓ Full book conversion</span>
-          <span>✓ Premium voices</span>
-          <span>✓ Unlimited downloads</span>
-          <span>✓ Batch processing</span>
+          <span>✓ Free Account: 10 chapters per book</span>
+          <span>✓ 250 words per chapter</span>
+          <span>✓ Personal library</span>
+          <span>✓ Save your audiobooks</span>
         </div>
         <div className="upgrade-buttons">
-          <button className="upgrade-btn">Upgrade to Pro - £19/month</button>
-          <button className="try-another-btn" onClick={resetDemo}>Try Another Book</button>
+          <button className="upgrade-btn">Sign Up Free - 10x More Content</button>
+          <button className="try-another-btn" onClick={resetDemo}>Try Another Sample</button>
+        </div>
+        <div className="tier-info-simple">
+          <p><strong>Upgrade Path:</strong></p>
+          <p>📱 Sample: 5ch × 50 words → 🔓 Free: 10ch × 250 words → 🚀 Premium: Unlimited</p>
         </div>
       </div>
     </div>
@@ -849,13 +1372,13 @@ const resetDemo = () => {
           <div className="nav-buttons">
             <button className="nav-btn login-btn">Sign In</button>
             <button className="nav-btn trial-btn" onClick={() => setShowTrial(true)}>
-              Try Free
+              Try Sample
             </button>
           </div>
         </div>
       </nav>
 
-      {/* Hero Section - Mobile Optimized - HONEST STATS */}
+      {/* Hero Section - Mobile Optimized - UPDATED MESSAGING */}
       <section className="hero">
         <div className="hero-container">
           <div className="hero-content">
@@ -869,17 +1392,17 @@ const resetDemo = () => {
             </h1>
             
             <p className="hero-subtitle">
-              Upload your PDF, EPUB, or text file and our AI converts it to natural-sounding audiobooks with smart chapter detection. Full book conversion typically takes 5 minutes.
+              Upload your PDF, EPUB, or text file and our AI instantly creates a sample audiobook with natural narration. Experience the quality with a free sample, then convert your complete library.
             </p>
             
             <div className="hero-stats">
               <div className="stat">
-                <span className="stat-number">Beta</span>
-                <span className="stat-label">Early Access</span>
+                <span className="stat-number">Free</span>
+                <span className="stat-label">Sample</span>
               </div>
               <div className="stat">
-                <span className="stat-number">5 min</span>
-                <span className="stat-label">Full Book</span>
+                <span className="stat-number">30 sec</span>
+                <span className="stat-label">Preview</span>
               </div>
               <div className="stat">
                 <span className="stat-number">AI</span>
@@ -889,7 +1412,7 @@ const resetDemo = () => {
             
             <div className="cta-buttons">
               <button className="cta-primary" onClick={() => setShowTrial(true)}>
-                🎙️ Try Free Demo
+                🎙️ Try Free Sample
               </button>
               <a href="#features" className="cta-secondary">
                 📖 Learn More
@@ -928,12 +1451,12 @@ const resetDemo = () => {
         </div>
       </section>
 
-      {/* Live Conversion Demo - iPhone Optimized */}
+      {/* Live Conversion Demo - iPhone Optimized - UPDATED COPY */}
       <section className="conversion-demo">
         <div className="container">
           <div className="section-header">
             <h2>🎧 Try Live Demo</h2>
-            <p>Experience AI audiobook conversion - 2 minute preview</p>
+            <p>Experience AI audiobook quality with an instant sample from your book</p>
           </div>
           
           <div className="conversion-interface">
@@ -945,7 +1468,7 @@ const resetDemo = () => {
         </div>
       </section>
 
-      {/* Features Section - Mobile Compact */}
+      {/* Features Section - Mobile Compact - UPDATED MESSAGING */}
       <section id="features" className="features">
         <div className="container">
           <div className="section-header">
@@ -957,100 +1480,104 @@ const resetDemo = () => {
             <div className="feature-card">
               <div className="feature-icon">🤖</div>
               <h3>Smart AI Processing</h3>
-              <p>Advanced AI automatically detects chapters, skips front matter, and creates structured navigation for professional audiobooks.</p>
+              <p>Advanced AI automatically detects chapters, skips front matter, and creates structured navigation. Try it free with a sample from your book.</p>
             </div>
             
             <div className="feature-card">
               <div className="feature-icon">🎭</div>
               <h3>Natural AI Voices</h3>
-              <p>Choose from AI voices designed for audiobook narration with natural pacing and clear pronunciation.</p>
+              <p>Experience professional AI narration with natural pacing and clear pronunciation. Hear the quality in your free sample.</p>
             </div>
             
             <div className="feature-card">
               <div className="feature-icon">⚡</div>
-              <h3>Efficient Processing</h3>
-              <p>Convert full books in approximately 5 minutes. Our AI infrastructure processes your content efficiently and accurately.</p>
+              <h3>Instant Samples</h3>
+              <p>Generate audio samples in seconds to experience the quality. Once satisfied, convert your entire library with full chapter support.</p>
             </div>
             
             <div className="feature-card">
               <div className="feature-icon">📚</div>
-              <h3>Smart Chapter Detection</h3>
-              <p>AI automatically identifies chapters and creates navigation, making your audiobooks professionally structured and easy to navigate.</p>
+              <h3>Chapter Intelligence</h3>
+              <p>AI identifies chapters automatically and creates professional navigation. Sample shows the beginning of each chapter with full structure.</p>
             </div>
             
             <div className="feature-card">
               <div className="feature-icon">🎧</div>
-              <h3>Quality Audio Output</h3>
-              <p>Generate clear, consistent audio with customizable speed and natural-sounding narration for an enhanced listening experience.</p>
+              <h3>Professional Quality</h3>
+              <p>Generate clear, consistent audio with customizable speed. Free samples demonstrate the full quality you'll get.</p>
             </div>
             
             <div className="feature-card">
               <div className="feature-icon">☁️</div>
-              <h3>Cloud-Powered</h3>
-              <p>Access your converted audiobooks from any device with secure cloud storage and easy download management.</p>
+              <h3>Easy Access</h3>
+              <p>Try samples instantly, no signup required. Create an account to unlock full books and manage your audiobook library.</p>
             </div>
           </div>
         </div>
       </section>
 
-      {/* Pricing Section - Mobile Optimized */}
+      {/* Pricing Section - Mobile Optimized - ACCURATE TIER SYSTEM */}
       <section className="pricing">
         <div className="container">
           <div className="section-header">
-            <h2>Simple, Transparent Pricing</h2>
-            <p>Start your audiobook journey today</p>
+            <h2>Choose Your Audiobook Experience</h2>
+            <p>From free samples to unlimited conversion</p>
           </div>
           
           <div className="pricing-cards">
             <div className="pricing-card">
-              <h3>Free Trial</h3>
+              <h3>Free Sample</h3>
               <div className="price">
                 <span className="amount">£0</span>
               </div>
               <ul>
-                <li>2-minute preview</li>
-                <li>Basic AI voice</li>
-                <li>Experience the technology</li>
-                <li>No payment required</li>
+                <li>Sample preview of any book</li>
+                <li>First part of up to 5 chapters</li>
+                <li>~50 words per chapter</li>
+                <li>Professional AI narration</li>
+                <li>No signup required</li>
               </ul>
               <button className="pricing-btn trial">
-                Try Free
+                Try Sample Now
               </button>
             </div>
             
             <div className="pricing-card featured">
               <div className="popular-badge">Most Popular</div>
-              <h3>Pro Unlimited</h3>
+              <h3>Free Account</h3>
               <div className="price">
-                <span className="amount">£19.99</span>
-                <span className="period">/month</span>
+                <span className="amount">Free</span>
+                <span className="period">signup</span>
               </div>
               <ul>
-                <li>Unlimited conversions</li>
-                <li>Multiple AI voices</li>
-                <li>Chapter navigation</li>
-                <li>Cloud storage & sync</li>
-                <li>Priority processing</li>
+                <li>Convert up to 10 chapters</li>
+                <li>Up to 250 words per chapter</li>
+                <li>Limited books per month</li>
+                <li>Personal audiobook library</li>
+                <li>Save & manage conversions</li>
+                <li>Standard AI voices</li>
               </ul>
               <button className="pricing-btn primary">
-                Start Free Trial
+                Sign Up Free
               </button>
             </div>
             
-            <div className="pricing-card">
-              <h3>Enterprise</h3>
+            <div className="pricing-card premium">
+              <h3>Premium Unlimited</h3>
               <div className="price">
-                <span className="amount">Custom</span>
+                <span className="amount">£19</span>
+                <span className="period">/month</span>
               </div>
               <ul>
-                <li>Everything in Pro</li>
-                <li>Custom voice training</li>
-                <li>API access</li>
-                <li>Team management</li>
-                <li>Dedicated support</li>
+                <li>Unlimited complete books</li>
+                <li>Full chapters, no word limits</li>
+                <li>50+ premium AI voices</li>
+                <li>Priority processing</li>
+                <li>Download for offline use</li>
+                <li>Premium support</li>
               </ul>
               <button className="pricing-btn secondary">
-                Contact Sales
+                Upgrade to Premium
               </button>
             </div>
           </div>
@@ -1063,14 +1590,14 @@ const resetDemo = () => {
           <div className="footer-content">
             <div className="footer-section">
               <h4>🎙️ EbookVoice AI</h4>
-              <p>Transform any ebook into professional audiobooks with advanced AI technology.</p>
+              <p>Transform any ebook into professional audiobooks with advanced AI technology. Start with a free sample.</p>
               <p className="domain">ebookvoice.ai</p>
             </div>
             <div className="footer-section">
               <h4>Product</h4>
               <ul>
                 <li><a href="#features">AI Technology</a></li>
-                <li><a href="#pricing">Pricing</a></li>
+                <li><a href="#pricing">Free Sample</a></li>
                 <li><a href="#demo">Live Demo</a></li>
               </ul>
             </div>
@@ -1097,19 +1624,19 @@ const resetDemo = () => {
         </div>
       </footer>
 
-      {/* Trial Modal - iPhone Optimized */}
+      {/* Trial Modal - iPhone Optimized - UPDATED COPY */}
       {showTrial && (
         <div className="trial-section">
           <div className="trial-overlay" onClick={() => setShowTrial(false)}></div>
           <div className="trial-modal">
             <button className="close-trial" onClick={() => setShowTrial(false)}>×</button>
-            <h2>🎙️ Try EbookVoice AI Free</h2>
-            <p>Upload any ebook and experience our AI technology with a 2-minute preview</p>
+            <h2>🎙️ Try EbookVoice AI Sample</h2>
+            <p>Upload any ebook and hear how it sounds as a professional audiobook. Get an instant sample to experience the quality.</p>
             
             <div className="trial-upload-area" onClick={() => document.getElementById('trial-file-input').click()}>
               <div className="upload-icon">📄</div>
               <h3>Upload Your Ebook</h3>
-              <p>PDF, EPUB, TXT • 5MB max • 2-minute preview</p>
+              <p>PDF, EPUB, TXT • 5MB max • Instant sample</p>
               <button className="upload-btn">Choose File</button>
               <input
                 id="trial-file-input"
@@ -1126,7 +1653,7 @@ const resetDemo = () => {
             <div className="trial-features">
               <div className="trial-feature">
                 <span>⚡</span>
-                <span>2-min preview</span>
+                <span>Instant sample</span>
               </div>
               <div className="trial-feature">
                 <span>🎯</span>
@@ -1136,6 +1663,17 @@ const resetDemo = () => {
                 <span>🔒</span>
                 <span>Secure & private</span>
               </div>
+            </div>
+            
+            <div className="sample-info">
+              <p><strong>What you'll get:</strong></p>
+              <ul>
+                <li>✓ Sample from up to 5 chapters (~50 words each)</li>
+                <li>✓ Professional AI narration</li>
+                <li>✓ Instant playback</li>
+                <li>✓ Full quality preview</li>
+              </ul>
+              <p><em>Want more? Free account gives you 10 chapters with 250 words each!</em></p>
             </div>
           </div>
         </div>
