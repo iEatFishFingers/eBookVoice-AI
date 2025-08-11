@@ -39,6 +39,21 @@ def create_app(config_name=None):
     app.register_blueprint(audiobooks_bp)
     app.register_blueprint(users_bp)
     
+    # Root route
+    @app.route('/')
+    def root():
+        return {
+            'service': 'eBookVoice-AI API',
+            'version': '1.0.0',
+            'status': 'running',
+            'endpoints': {
+                'health': '/health',
+                'auth': '/api/auth',
+                'users': '/api/users',
+                'audiobooks': '/api/audiobooks'
+            }
+        }
+    
     # Health check endpoint
     @app.route('/health')
     def health_check():
