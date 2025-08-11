@@ -28,8 +28,32 @@ import pyttsx3
 app = Flask(__name__)
 
 # Configure CORS to allow your React frontend to communicate with this backend
-# This is essential for local development where frontend and backend run on different ports
-CORS(app, origins=['http://localhost:3000', 'http://127.0.0.1:3000'])
+# For development, allow local network access
+import re
+
+def is_local_origin(origin):
+    """Check if origin is from local development"""
+    if not origin:
+        return False
+    
+    local_patterns = [
+        r'http://localhost:\d+',
+        r'http://127\.0\.0\.1:\d+', 
+        r'http://192\.168\.\d+\.\d+:\d+',  # Local network
+        r'http://10\.\d+\.\d+\.\d+:\d+',   # Private network
+        r'http://172\.1[6-9]\.\d+\.\d+:\d+', # Private network
+        r'http://172\.2[0-9]\.\d+\.\d+:\d+', # Private network  
+        r'http://172\.3[0-1]\.\d+\.\d+:\d+'  # Private network
+    ]
+    
+    return any(re.match(pattern, origin) for pattern in local_patterns)
+
+# More flexible CORS for development
+CORS(app, 
+     origin=is_local_origin,  # Use function to check origins dynamically
+     supports_credentials=True,
+     allow_headers=['Content-Type', 'Authorization'],
+     methods=['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'])
 
 # Configure upload settings
 app.config['UPLOAD_FOLDER'] = 'uploads'          # Temporary storage for uploaded files
@@ -1975,8 +1999,12 @@ def serve_audio_file(audio_path):
     /api/audio/audiobook_20250720_212139_770b1cd6/chapters/Chapter_01_16._MY_ADOPTED_FATHER.wav
     """
     try:
+        print(f"🎵 Audio request received: {audio_path}")
+        
         # Construct the full path to the audio file
         full_audio_path = os.path.join(app.config['AUDIOBOOKS_FOLDER'], audio_path)
+        print(f"🎵 Full audio path: {full_audio_path}")
+        print(f"🎵 Audiobooks folder: {app.config['AUDIOBOOKS_FOLDER']}")
         
         # Security check: ensure the path doesn't escape our audiobooks directory
         audiobooks_abs_path = os.path.abspath(app.config['AUDIOBOOKS_FOLDER'])
@@ -2593,6 +2621,555 @@ def trail_conversion_process():
 
 
 
+# ==========================================
+# ADDITIONAL API ENDPOINTS FOR FRONTEND INTEGRATION
+# ==========================================
+
+# In-memory storage for demo purposes (replace with database in production)
+conversion_jobs = {}
+user_stats = {
+    'conversionsThisMonth': 3,
+    'totalAudiobooks': 12,  
+    'listeningHours': 45,
+    'storageUsed': 35
+}
+
+# Mock user data (replace with proper authentication)
+mock_user = {
+    'id': 'demo_user',
+    'name': 'Demo User',
+    'email': 'demo@ebookvoice.ai',
+    'subscription': 'premium'
+}
+
+@app.route('/api/auth/profile', methods=['GET'])
+def get_user_profile():
+    """Get current user profile"""
+    return jsonify({
+        'success': True,
+        'data': mock_user
+    })
+
+@app.route('/api/settings/voices', methods=['GET'])
+def get_available_voices():
+    """Get list of available TTS voices"""
+    try:
+        # Initialize TTS engine to get available voices
+        import pyttsx3
+        engine = pyttsx3.init()
+        system_voices = engine.getProperty('voices')
+        engine.stop()
+        
+        # Convert to frontend format
+        voices = []
+        if system_voices:
+            for i, voice in enumerate(system_voices[:6]):  # Limit to 6 voices
+                voices.append({
+                    'id': f'voice_{i}',
+                    'name': voice.name.split(' ')[0] if voice.name else f'Voice {i+1}',
+                    'description': f'System voice: {voice.name}' if voice.name else f'System voice {i+1}',
+                    'premium': i >= 2  # First 2 voices are free
+                })
+        
+        # Add some default voices if none found
+        if not voices:
+            voices = [
+                {'id': 'emma', 'name': 'Emma', 'description': 'Warm, friendly female voice', 'premium': False},
+                {'id': 'james', 'name': 'James', 'description': 'Professional male narrator', 'premium': False},
+                {'id': 'sophia', 'name': 'Sophia', 'description': 'Elegant, clear female voice', 'premium': True},
+                {'id': 'marcus', 'name': 'Marcus', 'description': 'Deep, authoritative male voice', 'premium': True},
+            ]
+        
+        return jsonify({
+            'success': True,
+            'data': voices
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': f'Failed to get voices: {str(e)}'
+        }), 500
+
+@app.route('/api/settings/stats', methods=['GET'])
+def get_user_stats():
+    """Get user usage statistics"""
+    return jsonify({
+        'success': True,
+        'data': user_stats
+    })
+
+@app.route('/api/conversions/upload', methods=['POST', 'OPTIONS'])
+def upload_conversion_file():
+    """Upload file and prepare for conversion - compatible with frontend"""
+    # Handle preflight CORS request
+    if request.method == 'OPTIONS':
+        response = jsonify({'status': 'OK'})
+        response.headers.add('Access-Control-Allow-Origin', '*')
+        response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
+        response.headers.add('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS')
+        return response
+    
+    if 'file' not in request.files:
+        return jsonify({
+            'success': False,
+            'error': 'No file provided'
+        }), 400
+    
+    file = request.files['file']
+    if file.filename == '':
+        return jsonify({
+            'success': False,
+            'error': 'No file selected'
+        }), 400
+    
+    # Save file temporarily
+    filename = secure_filename(file.filename)
+    temp_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+    file.save(temp_path)
+    
+    return jsonify({
+        'success': True,
+        'data': {
+            'fileId': filename,
+            'message': 'File uploaded successfully'
+        }
+    })
+
+@app.route('/api/conversions/start', methods=['POST'])
+def start_conversion_job():
+    """Start conversion job with settings - uses your trailConvert endpoint"""
+    try:
+        data = request.get_json()
+        file_id = data.get('fileId')
+        settings = data.get('settings', {})
+        
+        # Generate unique job ID
+        job_id = str(uuid.uuid4())[:8]
+        
+        # Get the uploaded file path
+        file_path = os.path.join(app.config['UPLOAD_FOLDER'], file_id)
+        
+        if not os.path.exists(file_path):
+            return jsonify({
+                'success': False,
+                'error': 'Uploaded file not found'
+            }), 404
+        
+        # Create job record
+        conversion_jobs[job_id] = {
+            'id': job_id,
+            'title': file_id.replace('.pdf', '').replace('.epub', '').replace('.txt', ''),
+            'fileName': file_id,
+            'fileSize': os.path.getsize(file_path) if os.path.exists(file_path) else 0,
+            'status': 'processing',
+            'progress': 0,
+            'estimatedDuration': '4-6 hours',
+            'createdAt': datetime.now().isoformat(),
+            'updatedAt': datetime.now().isoformat(),
+            'audioUrl': None,
+            'settings': settings,
+            'filePath': file_path  # Store for background processing
+        }
+        
+        # Start background conversion using your trailConvert logic
+        import threading
+        conversion_thread = threading.Thread(
+            target=background_trail_conversion,
+            args=(job_id, file_path, settings)
+        )
+        conversion_thread.daemon = True
+        conversion_thread.start()
+        
+        return jsonify({
+            'success': True,
+            'data': conversion_jobs[job_id]
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@app.route('/api/conversions', methods=['GET'])  
+def get_user_conversions():
+    """Get all user conversions"""
+    return jsonify({
+        'success': True,
+        'data': list(conversion_jobs.values())
+    })
+
+@app.route('/api/conversions/<job_id>', methods=['GET'])
+def get_conversion_status(job_id):
+    """Get specific conversion job status"""
+    if job_id not in conversion_jobs:
+        return jsonify({
+            'success': False,
+            'error': 'Conversion not found'
+        }), 404
+    
+    # Return the actual job status (don't simulate - use real data from background thread)
+    job = conversion_jobs[job_id].copy()  # Return a copy to avoid modification
+    
+    # Debug logging to see what's actually happening
+    print(f"🔍 Status check for job {job_id}:")
+    print(f"   Status: {job.get('status', 'unknown')}")
+    print(f"   Progress: {job.get('progress', 0)}%")
+    print(f"   Current Phase: {job.get('current_phase', 'N/A')}")
+    print(f"   Audio URL: {job.get('audioUrl', 'None')}")
+    
+    return jsonify({
+        'success': True,
+        'data': job
+    })
+
+@app.route('/api/conversions/<job_id>', methods=['DELETE'])
+def delete_conversion(job_id):
+    """Delete a conversion job"""
+    if job_id in conversion_jobs:
+        del conversion_jobs[job_id]
+        return jsonify({
+            'success': True,
+            'message': 'Conversion deleted'
+        })
+    
+    return jsonify({
+        'success': False,
+        'error': 'Conversion not found'
+    }), 404
+
+def background_trail_conversion(job_id, file_path, settings):
+    """
+    Background function that runs your trailConvert logic with progress updates.
+    This integrates your existing comprehensive conversion process with the job system.
+    """
+    try:
+        print(f"\n🎬 Starting background conversion for job {job_id}")
+        print(f"📁 File: {file_path}")
+        print(f"⚙️ Settings: {settings}")
+        
+        # Update job status to processing
+        if job_id in conversion_jobs:
+            conversion_jobs[job_id]['status'] = 'processing'
+            conversion_jobs[job_id]['progress'] = 5
+            conversion_jobs[job_id]['updatedAt'] = datetime.now().isoformat()
+        
+        # PHASE 1: File validation (5-10%)
+        print("📥 Phase 1: Validating file...")
+        if job_id in conversion_jobs:
+            conversion_jobs[job_id]['progress'] = 10
+            conversion_jobs[job_id]['updatedAt'] = datetime.now().isoformat()
+        
+        # PHASE 2: Chapter extraction (10-30%)
+        print("📖 Phase 2: Extracting chapters...")
+        if job_id in conversion_jobs:
+            conversion_jobs[job_id]['progress'] = 15
+            conversion_jobs[job_id]['updatedAt'] = datetime.now().isoformat()
+        
+        # Initialize chapter extractor
+        chapter_extractor = IntelligentChapterExtractor()
+        extracted_chapters = chapter_extractor.extract_chapters_from_file(file_path)
+        
+        if not extracted_chapters:
+            if job_id in conversion_jobs:
+                conversion_jobs[job_id]['status'] = 'failed'
+                conversion_jobs[job_id]['updatedAt'] = datetime.now().isoformat()
+            return
+        
+        if job_id in conversion_jobs:
+            conversion_jobs[job_id]['progress'] = 30
+            conversion_jobs[job_id]['updatedAt'] = datetime.now().isoformat()
+        
+        print(f"✅ Extracted {len(extracted_chapters)} chapters")
+        
+        # PHASE 3: Audio conversion (30-90%)
+        print("🎵 Phase 3: Converting to audio...")
+        print(f"📊 Found {len(extracted_chapters)} chapters to convert")
+        
+        # Initialize audio generator with progress tracking
+        try:
+            print("⏳ Initializing AdvancedAudiobookGenerator...")
+            
+            # Update progress to show XTTS loading (30-35%)
+            if job_id in conversion_jobs:
+                conversion_jobs[job_id]['progress'] = 30
+                conversion_jobs[job_id]['current_phase'] = 'Initializing XTTS neural model components...'
+                conversion_jobs[job_id]['updatedAt'] = datetime.now().isoformat()
+            
+            audio_generator = AdvancedAudiobookGenerator()
+            
+            print("⏳ Loading XTTS neural model (this may take 30-60 seconds)...")
+            
+            # Update progress during model loading - step 1 (32%)
+            if job_id in conversion_jobs:
+                conversion_jobs[job_id]['progress'] = 32
+                conversion_jobs[job_id]['current_phase'] = 'Loading XTTS text encoder...'
+                conversion_jobs[job_id]['updatedAt'] = datetime.now().isoformat()
+            
+            import time
+            time.sleep(0.5)  # Small delay to ensure frontend can see progress update
+            
+            # Update progress during model loading - step 2 (35%)
+            if job_id in conversion_jobs:
+                conversion_jobs[job_id]['progress'] = 35
+                conversion_jobs[job_id]['current_phase'] = 'Loading XTTS neural weights and vocoder...'
+                conversion_jobs[job_id]['updatedAt'] = datetime.now().isoformat()
+            
+            audio_generator.initialize_xtts_model()
+            
+            # Update progress during model loading - step 3 (37%)
+            if job_id in conversion_jobs:
+                conversion_jobs[job_id]['progress'] = 37
+                conversion_jobs[job_id]['current_phase'] = 'Configuring XTTS voice synthesis engine...'
+                conversion_jobs[job_id]['updatedAt'] = datetime.now().isoformat()
+            
+            # Verify model loaded properly
+            if not hasattr(audio_generator, 'model_loaded') or not audio_generator.model_loaded:
+                raise Exception("XTTS model failed to initialize properly")
+                
+            print("✅ XTTS neural model loaded successfully")
+            
+            # Update progress when model is ready (40%)
+            if job_id in conversion_jobs:
+                conversion_jobs[job_id]['progress'] = 40
+                conversion_jobs[job_id]['current_phase'] = 'XTTS model ready - starting audio generation...'
+                conversion_jobs[job_id]['updatedAt'] = datetime.now().isoformat()
+            
+        except Exception as init_error:
+            print(f"❌ Failed to initialize XTTS model: {init_error}")
+            if job_id in conversion_jobs:
+                conversion_jobs[job_id]['status'] = 'failed'
+                conversion_jobs[job_id]['current_phase'] = f'XTTS initialization failed: {str(init_error)}'
+                conversion_jobs[job_id]['updatedAt'] = datetime.now().isoformat()
+            return
+        
+        if job_id in conversion_jobs:
+            conversion_jobs[job_id]['progress'] = 40
+            conversion_jobs[job_id]['updatedAt'] = datetime.now().isoformat()
+        
+        # Create output folder
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        conversion_id = str(uuid.uuid4())[:8]
+        audio_output_folder = os.path.join(
+            app.config['AUDIOBOOKS_FOLDER'], 
+            f"{timestamp}_{conversion_id}_audiobook"
+        )
+        os.makedirs(audio_output_folder, exist_ok=True)
+        
+        # Convert each chapter
+        converted_audio_files = []
+        total_chapters = len(extracted_chapters)
+        
+        for chapter_index, chapter_data in enumerate(extracted_chapters):
+            print(f"\n🎙️ Converting chapter {chapter_index + 1}/{total_chapters}: {chapter_data['title']}")
+            
+            # Calculate progress (40% to 90% across all chapters)
+            chapter_start_progress = 40 + (chapter_index / total_chapters) * 50
+            chapter_end_progress = 40 + ((chapter_index + 1) / total_chapters) * 50
+            
+            # Update progress at start of chapter
+            if job_id in conversion_jobs:
+                conversion_jobs[job_id]['progress'] = int(chapter_start_progress)
+                conversion_jobs[job_id]['current_phase'] = f'Processing chapter {chapter_index + 1}/{total_chapters}: {chapter_data["title"][:50]}...'
+                conversion_jobs[job_id]['updatedAt'] = datetime.now().isoformat()
+            
+            # Save chapter text to file
+            chapter_filename = f"chapter_{chapter_index + 1:03d}.txt"
+            chapter_text_path = os.path.join(audio_output_folder, chapter_filename)
+            
+            try:
+                # Create chapter text file
+                print(f"📝 Writing chapter text to: {chapter_filename}")
+                with open(chapter_text_path, 'w', encoding='utf-8') as f:
+                    f.write(chapter_data['content'])
+                
+                if not os.path.exists(chapter_text_path):
+                    raise Exception(f"Failed to create chapter text file: {chapter_text_path}")
+                    
+                print(f"✅ Chapter text file created: {os.path.getsize(chapter_text_path)} bytes")
+                
+                # Convert to audio
+                audio_filename = f"chapter_{chapter_index + 1:03d}.wav"
+                audio_file_path = os.path.join(audio_output_folder, audio_filename)
+                
+                print(f"🎵 Converting to audio: {audio_filename}")
+                print(f"🎵 Output path: {audio_file_path}")
+                print(f"🎵 Using voice: {settings.get('voice', 'ana_florence')}")
+                
+                # Update progress during neural generation - start
+                neural_start_progress = int(chapter_start_progress + (chapter_end_progress - chapter_start_progress) * 0.1)
+                if job_id in conversion_jobs:
+                    conversion_jobs[job_id]['progress'] = neural_start_progress
+                    conversion_jobs[job_id]['current_phase'] = f'Initializing XTTS neural synthesis for chapter {chapter_index + 1}...'
+                    conversion_jobs[job_id]['updatedAt'] = datetime.now().isoformat()
+                
+                print("🧠 Starting XTTS neural audio generation...")
+                
+                # Progress during neural synthesis (simulate incremental updates)
+                neural_mid_progress = int(chapter_start_progress + (chapter_end_progress - chapter_start_progress) * 0.4)
+                if job_id in conversion_jobs:
+                    conversion_jobs[job_id]['progress'] = neural_mid_progress
+                    conversion_jobs[job_id]['current_phase'] = f'XTTS neural synthesis in progress for chapter {chapter_index + 1} (processing speech patterns)...'
+                    conversion_jobs[job_id]['updatedAt'] = datetime.now().isoformat()
+                
+                time.sleep(0.3)  # Brief delay for progress visibility
+                
+                conversion_result = audio_generator.convert_chapter_to_audio(
+                    chapter_text_file_path=chapter_text_path,
+                    output_audio_path=audio_file_path,
+                    word_limit=None,
+                    speaker=settings.get('voice', 'ana_florence')
+                )
+                print("🧠 XTTS neural audio generation completed")
+                
+                # Update progress after neural generation
+                post_neural_progress = int(chapter_start_progress + (chapter_end_progress - chapter_start_progress) * 0.8)
+                if job_id in conversion_jobs:
+                    conversion_jobs[job_id]['progress'] = post_neural_progress
+                    conversion_jobs[job_id]['current_phase'] = f'Finalizing audio encoding for chapter {chapter_index + 1}...'
+                    conversion_jobs[job_id]['updatedAt'] = datetime.now().isoformat()
+                
+                print(f"🔍 Conversion result type: {type(conversion_result)}")
+                print(f"🔍 Conversion result: {conversion_result}")
+                
+                success = conversion_result.get('success', False) if isinstance(conversion_result, dict) else conversion_result
+                
+                # Verify audio file was actually created and is valid
+                print("🔍 Verifying generated audio file...")
+                
+                # Wait a moment for file system to sync
+                import time
+                time.sleep(0.5)
+                
+                if success and os.path.exists(audio_file_path):
+                    file_size = os.path.getsize(audio_file_path)
+                    
+                    # Check if file has reasonable size (not empty or tiny)
+                    if file_size > 1000:  # At least 1KB
+                        print(f"✅ Audio file created successfully: {file_size:,} bytes")
+                        
+                        converted_audio_files.append({
+                            'chapter': chapter_index + 1,
+                            'title': chapter_data['title'],
+                            'audio_file': audio_file_path,
+                            'duration': 0,  # Could calculate actual duration
+                            'file_size': file_size
+                        })
+                        
+                        # Update progress after successful chapter completion
+                        if job_id in conversion_jobs:
+                            conversion_jobs[job_id]['progress'] = int(chapter_end_progress)
+                            conversion_jobs[job_id]['current_phase'] = f'Chapter {chapter_index + 1} completed successfully'
+                            conversion_jobs[job_id]['updatedAt'] = datetime.now().isoformat()
+                        
+                        print(f"✅ Chapter {chapter_index + 1} converted successfully")
+                    else:
+                        print(f"❌ Audio file too small ({file_size} bytes) - likely corrupt")
+                        if job_id in conversion_jobs:
+                            conversion_jobs[job_id]['current_phase'] = f'Chapter {chapter_index + 1} failed - corrupt audio file'
+                            conversion_jobs[job_id]['updatedAt'] = datetime.now().isoformat()
+                else:
+                    if not success:
+                        print(f"❌ Audio conversion returned failure for chapter {chapter_index + 1}")
+                        print(f"❌ Conversion result: {conversion_result}")
+                    if not os.path.exists(audio_file_path):
+                        print(f"❌ Audio file was not created: {audio_file_path}")
+                    
+                    if job_id in conversion_jobs:
+                        conversion_jobs[job_id]['current_phase'] = f'Chapter {chapter_index + 1} failed - no audio generated'
+                        conversion_jobs[job_id]['updatedAt'] = datetime.now().isoformat()
+                    
+                    print(f"❌ Failed to convert chapter {chapter_index + 1}")
+                    
+            except Exception as chapter_error:
+                print(f"❌ Error converting chapter {chapter_index + 1}: {chapter_error}")
+                import traceback
+                print(f"❌ Traceback: {traceback.format_exc()}")
+                continue
+        
+        # PHASE 4: Finalization (90-100%)
+        print(f"\n🎯 Phase 4: Finalizing conversion...")
+        print(f"📊 Converted {len(converted_audio_files)} out of {total_chapters} chapters")
+        
+        if job_id in conversion_jobs:
+            conversion_jobs[job_id]['progress'] = 95
+            conversion_jobs[job_id]['updatedAt'] = datetime.now().isoformat()
+        
+        # Clean up audio generator
+        try:
+            print("🧹 Cleaning up XTTS model...")
+            audio_generator.cleanup_model()
+            print("✅ XTTS model cleaned up successfully")
+        except Exception as cleanup_error:
+            print(f"⚠️ Cleanup warning: {cleanup_error}")
+        
+        # Verify audio files actually exist before marking as completed
+        print("🔍 Verifying generated audio files...")
+        
+        if converted_audio_files:
+            print(f"📁 Audio files generated:")
+            for i, audio_file_info in enumerate(converted_audio_files):
+                audio_path = audio_file_info['audio_file']
+                exists = os.path.exists(audio_path)
+                size = os.path.getsize(audio_path) if exists else 0
+                print(f"   {i+1}. {os.path.basename(audio_path)} - {'✅' if exists else '❌'} ({size} bytes)")
+        else:
+            print("❌ No audio files were generated")
+        
+        if job_id in conversion_jobs and converted_audio_files:
+            # Check if the first audio file actually exists
+            first_audio_file = converted_audio_files[0]['audio_file'] if converted_audio_files else None
+            
+            if first_audio_file and os.path.exists(first_audio_file):
+                # Generate the correct API URL for the audio file
+                relative_path = os.path.relpath(first_audio_file, app.config['AUDIOBOOKS_FOLDER'])
+                relative_path = relative_path.replace('\\', '/')  # Fix Windows path separators
+                audio_url = f'/api/audio/{relative_path}'
+                
+                print(f"🎵 Audio URL: {audio_url}")
+                print(f"🎵 Full path: {first_audio_file}")
+                print(f"🎵 File size: {os.path.getsize(first_audio_file)} bytes")
+                
+                conversion_jobs[job_id]['status'] = 'completed'
+                conversion_jobs[job_id]['progress'] = 100
+                conversion_jobs[job_id]['audioUrl'] = audio_url
+                conversion_jobs[job_id]['updatedAt'] = datetime.now().isoformat()
+                conversion_jobs[job_id]['chapters'] = converted_audio_files
+                conversion_jobs[job_id]['outputFolder'] = audio_output_folder
+                
+                print(f"🎉 Conversion completed successfully!")
+                print(f"🎵 Audio available at: {audio_url}")
+            else:
+                # Audio file doesn't exist, mark as failed
+                print(f"❌ First audio file check failed:")
+                print(f"   File path: {first_audio_file}")
+                print(f"   File exists: {os.path.exists(first_audio_file) if first_audio_file else 'No file'}")
+                
+                conversion_jobs[job_id]['status'] = 'failed'
+                conversion_jobs[job_id]['progress'] = 95
+                conversion_jobs[job_id]['updatedAt'] = datetime.now().isoformat()
+                print(f"❌ Conversion failed: Audio file not generated")
+        else:
+            if job_id in conversion_jobs:
+                conversion_jobs[job_id]['status'] = 'failed'
+                conversion_jobs[job_id]['progress'] = 95  
+                conversion_jobs[job_id]['updatedAt'] = datetime.now().isoformat()
+                print(f"❌ Conversion failed: No audio files generated")
+                print(f"   Job exists: {job_id in conversion_jobs}")
+                print(f"   Audio files count: {len(converted_audio_files)}")
+            else:
+                print(f"❌ Job {job_id} not found in conversion_jobs")
+        
+        print(f"📁 Output folder: {audio_output_folder}")
+        print(f"🎵 Converted {len(converted_audio_files)} chapters")
+            
+    except Exception as e:
+        print(f"❌ Background conversion error: {str(e)}")
+        if job_id in conversion_jobs:
+            conversion_jobs[job_id]['status'] = 'failed'
+            conversion_jobs[job_id]['updatedAt'] = datetime.now().isoformat()
+
 
 if __name__ == '__main__':
     print("\n🚀 Starting AudioBook Converter Backend...")
@@ -2651,9 +3228,11 @@ if __name__ == '__main__':
     if directories_ok and libraries_ok:
         print("\n🎉 All systems ready for audiobook conversion!")
         print("📡 Starting Flask server...")
-        print("🌐 Backend will be available at: http://localhost:5001")
-        print("🔗 Health check: http://localhost:5001/health")
-        print("📱 Make sure your React frontend connects to: http://localhost:5001")
+        print("🌐 Backend will be available at:")
+        print("   - Local: http://localhost:5001")
+        print("   - Network: http://192.168.1.149:5001")
+        print("🔗 Health check: http://192.168.1.149:5001/health")
+        print("📱 Make sure your React frontend connects to: http://192.168.1.149:5001")
         print("=" * 60)
         
         # Start the Flask development server
