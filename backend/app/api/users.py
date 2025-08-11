@@ -19,7 +19,7 @@ def get_user_profile():
         user_id = request.current_user['user_id']
         user_manager = UserManager(current_app.config)
         
-        user = await user_manager.get_user_by_google_id(request.current_user['google_id'])
+        user = user_manager.get_user_by_google_id(request.current_user['google_id'])
         
         if not user:
             return jsonify({'error': 'User not found'}), 404
@@ -54,7 +54,7 @@ def get_usage_stats():
         user_manager = UserManager(current_app.config)
         
         # Get user info
-        user = await user_manager.get_user_by_google_id(request.current_user['google_id'])
+        user = user_manager.get_user_by_google_id(request.current_user['google_id'])
         
         # Get audiobooks count
         audiobooks = user_manager.get_user_audiobooks(user_id)
