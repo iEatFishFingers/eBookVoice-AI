@@ -45,7 +45,7 @@ def upload_audiobook():
         file_size = len(file.read())
         file.seek(0)  # Reset file pointer
         
-        if not await user_manager.check_storage_quota(user_id, file_size):
+        if not user_manager.check_storage_quota(user_id, file_size):
             return jsonify({'error': 'Storage quota exceeded'}), 413
         
         # Save file to cloud storage
@@ -62,7 +62,7 @@ def upload_audiobook():
         )
         
         # Update user storage usage
-        await user_manager.update_storage_usage(user_id, file_size)
+        user_manager.update_storage_usage(user_id, file_size)
         
         return jsonify({
             'success': True,
