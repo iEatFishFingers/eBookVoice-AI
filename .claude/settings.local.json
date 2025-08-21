@@ -9,7 +9,8 @@
       "Bash(curl:*)",
       "Bash(mkdir:*)",
       "Bash(touch:*)",
-      "Bash(docker build:*)"
+      "Bash(docker build:*)",
+      "Bash(pip index:*)"
     ],
     "deny": [],
     "ask": []

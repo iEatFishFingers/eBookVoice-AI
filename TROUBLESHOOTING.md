@@ -2,38 +2,45 @@
 
 ## Common Deployment Issues
 
-### ❌ Issue: `ModuleNotFoundError: No module named 'ebooklib'`
+### ❌ Issue: `ERROR: No matching distribution found for ebooklib==0.18.1`
 
-**Problem:** Docker container fails to build because of missing Python dependencies.
+**Problem:** Docker container fails because ebooklib version doesn't exist.
 
-**Solution 1: Fixed Dependencies (Recommended)**
-I've updated the requirements.txt and Dockerfile to fix this. Just redeploy:
+**Solution 1: Fixed Version (Try First)**
+I've updated to use ebooklib==0.19 (latest version):
 
-1. **Push the updated code:**
-   ```bash
-   git add .
-   git commit -m "fix: resolve ebooklib dependency issues"
-   git push origin main
-   ```
+```bash
+git add .
+git commit -m "fix: use correct ebooklib version 0.19"
+git push origin main
+```
 
-2. **Redeploy on Render:**
-   - Go to your Render dashboard
-   - Click "Manual Deploy" → "Deploy latest commit"
-   - Or wait for automatic deployment via GitHub Actions
+**Solution 2: Flexible Requirements (If version conflicts)**
+Use flexible version ranges:
 
-**Solution 2: Minimal Dependencies (If issues persist)**
-If the main requirements.txt still fails, use minimal dependencies:
+```bash
+cd backend
+cp requirements-flexible.txt requirements.txt
+git add requirements.txt
+git commit -m "fix: use flexible requirements"
+git push origin main
+```
 
-1. **Temporarily use minimal requirements:**
-   ```bash
-   cd backend
-   cp requirements-minimal.txt requirements.txt
-   git add requirements.txt
-   git commit -m "temp: use minimal dependencies"
-   git push origin main
-   ```
+**Solution 3: Minimal Dependencies (Guaranteed to work)**
+Skip ebooklib completely, support PDF + TXT only:
 
-2. **This will disable EPUB support but keep PDF and TXT working**
+```bash
+cd backend
+cp requirements-minimal.txt requirements.txt
+git add requirements.txt
+git commit -m "fix: use minimal dependencies - PDF and TXT only"
+git push origin main
+```
+
+**What each solution provides:**
+- **Solution 1:** Full support (PDF, EPUB, TXT) 
+- **Solution 2:** Full support with flexible versions
+- **Solution 3:** PDF and TXT only (guaranteed deployment)
 
 ### ❌ Issue: Docker Build Timeout
 

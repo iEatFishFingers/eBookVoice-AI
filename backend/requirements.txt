@@ -5,7 +5,7 @@ gunicorn==21.2.0
 
 # File processing libraries
 PyPDF2==3.0.1
-ebooklib==0.18.1
+ebooklib==0.19
 beautifulsoup4==4.12.2
 lxml==4.9.3
 
@@ -20,7 +20,3 @@ python-dotenv==1.0.0
 
 # Testing
 pytest==7.4.3
-
-# Additional system dependencies
-wheel==0.41.2
-setuptools==68.2.2
