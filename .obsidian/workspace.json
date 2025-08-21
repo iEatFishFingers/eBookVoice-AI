@@ -171,17 +171,17 @@
   },
   "active": "fc26382db6b986f3",
   "lastOpenFiles": [
-    "frontend/web-build/metadata.json",
-    "frontend/web-build/index.html",
     "frontend/web-build/_expo/static/js/web/index-bfe544acd73c7b5b03c547f7415c8962.js",
     "frontend/web-build/_expo/static/js/web",
     "frontend/web-build/_expo/static/js",
     "frontend/web-build/_expo/static",
     "frontend/web-build/_expo",
+    "frontend/web-build/index.html",
     "frontend/web-build/favicon.ico",
+    "frontend/web-build/metadata.json",
     "frontend/web-build",
-    "frontend/package.json.tmp.14964.1755779682628",
-    "frontend/netlify.toml.tmp.14964.1755779674753",
+    "frontend/package.json.tmp.14964.1755780108078",
+    "frontend/netlify.toml.tmp.14964.1755780101639",
     "TROUBLESHOOTING.md",
     "DEPLOYMENT.md"
   ]
