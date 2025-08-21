@@ -171,16 +171,17 @@
   },
   "active": "fc26382db6b986f3",
   "lastOpenFiles": [
+    "TROUBLESHOOTING.md",
+    "TROUBLESHOOTING.md.tmp.14964.1755778996489",
+    "backend/app.py.tmp.14964.1755778966892",
+    "backend/app.py.tmp.14964.1755778958932",
+    "backend/app.py.tmp.14964.1755778952107",
+    "backend/requirements-minimal.txt",
+    "backend/requirements-minimal.txt.tmp.14964.1755778944318",
+    "backend/Dockerfile.tmp.14964.1755778913146",
+    "backend/Dockerfile.tmp.14964.1755778904992",
+    "backend/requirements.txt.tmp.14964.1755778889200",
     "DEPLOYMENT.md",
-    "DEPLOYMENT.md.tmp.14964.1755777140770",
-    "DEPLOYMENT.md.tmp.14964.1755777125889",
-    "DEPLOYMENT.md.tmp.14964.1755777116268",
-    "README.md.tmp.14964.1755777100541",
-    "README.md.tmp.14964.1755777088283",
-    "README.md.tmp.14964.1755777078660",
-    "frontend/App.js.tmp.14964.1755777057464",
-    "frontend/App.js.tmp.14964.1755777048746",
-    "frontend/package.json.tmp.14964.1755776945607",
-    "frontend/netlify.toml"
+    "DEPLOYMENT.md.tmp.14964.1755777140770"
   ]
 }

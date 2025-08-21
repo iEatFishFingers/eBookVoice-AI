@@ -7,11 +7,18 @@ from pathlib import Path
 from flask import Flask, request, jsonify, send_file
 from flask_cors import CORS
 import PyPDF2
-import ebooklib
-from ebooklib import epub
 import pyttsx3
 from bs4 import BeautifulSoup
 from config import config
+
+# Try to import ebooklib, handle gracefully if not available
+try:
+    import ebooklib
+    from ebooklib import epub
+    EPUB_SUPPORT = True
+except ImportError:
+    EPUB_SUPPORT = False
+    print("Warning: ebooklib not available. EPUB support disabled.")
 
 def create_app(config_name=None):
     """Application factory pattern."""
@@ -53,6 +60,9 @@ class SimpleEBookConverter:
         return text
     
     def extract_text_from_epub(self, file_path):
+        if not EPUB_SUPPORT:
+            raise ValueError("EPUB support not available. Please install ebooklib.")
+        
         book = epub.read_epub(file_path)
         text = ""
         for item in book.get_items():
@@ -137,12 +147,20 @@ def upload_and_convert():
         # Validate file type
         original_filename = uploaded_file.filename
         file_extension = Path(original_filename).suffix.lower()
-        supported_extensions = {'.pdf', '.epub', '.txt', '.text'}
+        supported_extensions = {'.pdf', '.txt', '.text'}
+        
+        # Add EPUB support only if ebooklib is available
+        if EPUB_SUPPORT:
+            supported_extensions.add('.epub')
         
         if file_extension not in supported_extensions:
+            error_msg = f'Unsupported file type: {file_extension}'
+            if not EPUB_SUPPORT and file_extension == '.epub':
+                error_msg += ' (EPUB support not available in this deployment)'
+            
             return jsonify({
                 'success': False,
-                'error': f'Unsupported file type: {file_extension}',
+                'error': error_msg,
                 'supported_types': list(supported_extensions)
             }), 400
         
