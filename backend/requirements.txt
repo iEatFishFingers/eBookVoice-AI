@@ -5,7 +5,6 @@ gunicorn==21.2.0
 
 # File processing libraries
 PyPDF2==3.0.1
-ebooklib==0.18.1
 beautifulsoup4==4.12.2
 
 # Text-to-speech

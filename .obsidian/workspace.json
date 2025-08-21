@@ -4,11 +4,11 @@
     "type": "split",
     "children": [
       {
-        "id": "a021f17d86b85f0a",
+        "id": "4831bd24b1945b82",
         "type": "tabs",
         "children": [
           {
-            "id": "1489ff159366824b",
+            "id": "fc26382db6b986f3",
             "type": "leaf",
             "state": {
               "type": "markdown",
@@ -169,8 +169,9 @@
       "bases:Create new base": false
     }
   },
-  "active": "1489ff159366824b",
+  "active": "fc26382db6b986f3",
   "lastOpenFiles": [
+    "DEPLOYMENT.md",
     "DEPLOYMENT.md.tmp.14964.1755777140770",
     "DEPLOYMENT.md.tmp.14964.1755777125889",
     "DEPLOYMENT.md.tmp.14964.1755777116268",
@@ -180,7 +181,6 @@
     "frontend/App.js.tmp.14964.1755777057464",
     "frontend/App.js.tmp.14964.1755777048746",
     "frontend/package.json.tmp.14964.1755776945607",
-    "frontend/netlify.toml",
-    "frontend/netlify.toml.tmp.14964.1755776925706"
+    "frontend/netlify.toml"
   ]
 }
