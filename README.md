@@ -1,105 +1,269 @@
-# eBookVoice-AI
+# eBookVoice AI - MVP
 
-## Overview
+A simple eBook to audiobook converter using AI text-to-speech with production-ready DevOps pipeline.
 
-eBookVoice-AI is a professional AI-powered system that converts ebooks (PDF, EPUB, TXT) into high-quality audiobooks with smart chapter detection and natural neural voice synthesis.
+## 🚀 Features
 
-This project consists of:
+- Upload PDF, EPUB, or TXT files
+- Extract text and convert to audio using AI TTS
+- Real-time conversion progress tracking
+- Download generated audiobooks
+- Cross-platform React Native mobile app
+- Production-ready Docker deployment
+- CI/CD pipeline with GitHub Actions
+- Secure HTTPS hosting on Render
 
-- **Backend**: Flask API for ebook processing and neural audio generation ([backend/converter.py](backend/converter.py))
-- **Frontend**: React landing page and demo interface ([frontend/landing-page/src/App.js](frontend/landing-page/src/App.js))
+## 📁 Project Structure
 
----
+```
+eBookVoice-AI-Current/
+├── backend/              # Flask API server
+│   ├── app.py           # Main Flask application
+│   ├── config.py        # Production configuration
+│   ├── Dockerfile       # Docker container setup
+│   ├── requirements.txt # Python dependencies
+│   ├── render.yaml      # Render deployment config
+│   ├── tests/           # Automated tests
+│   ├── uploads/         # Uploaded files
+│   └── audiobooks/      # Generated audio files
+├── frontend/            # React Native mobile app
+│   ├── App.js          # Main app component
+│   └── package.json    # Node.js dependencies
+├── .github/workflows/   # CI/CD pipelines
+│   └── deploy.yml      # GitHub Actions workflow
+├── docker-compose.yml  # Local development setup
+└── README.md
+```
 
-## Prerequisites
+## 🏃‍♂️ Quick Start
 
-- Python 3.8+
-- Node.js 16+
-- pip (Python package manager)
-- npm (Node.js package manager)
-- CUDA-enabled GPU (recommended for neural synthesis)
-- All required Python libraries (see below)
+### Option 1: Local Development
 
----
-
-## Backend Setup
-
-1. **Install Python dependencies**  
-   Open a terminal in the `backend` folder and run:
-
-   ```sh
-   pip install flask flask-cors PyPDF2 ebooklib beautifulsoup4 pyttsx3 TTS
+1. **Clone and setup backend:**
+   ```bash
+   cd backend
+   pip install -r requirements.txt
+   python app.py
    ```
+   Server starts at `http://localhost:5001`
 
-2. **Start the backend server**  
-   In the `backend` folder, run:
-   ```sh
-   python converter.py
-   ```
-   - The server will start at `http://localhost:5001`
-   - Health check endpoint: `http://localhost:5001/health`
-
----
-
-## Frontend Setup
-
-1. **Install frontend dependencies**  
-   Open a terminal in `frontend/landing-page` and run:
-
-   ```sh
+2. **Setup frontend:**
+   ```bash
+   cd frontend
    npm install
-   ```
-
-2. **Start the React frontend**  
-   In the same folder, run:
-   ```sh
    npm start
    ```
-   - The app will open at `http://localhost:3000`
+   Use Expo Go app to scan QR code
 
----
+### Option 2: Docker Development
 
-## Usage
+1. **Run with Docker Compose:**
+   ```bash
+   docker-compose up --build
+   ```
+   Backend runs at `http://localhost:5001`
 
-1. **Open the frontend in your browser**  
-   Go to `http://localhost:3000`
+## 🌐 Production Deployment
 
-2. **Upload an ebook**
+### Full Stack Deployment (Backend + Frontend)
 
-   - Click "Try Free Demo" or use the upload section.
-   - Supported formats: PDF, EPUB, TXT (max 50MB for backend, 5MB for trial).
+#### 1. Deploy Backend to Render
 
-3. **Start conversion**
+1. **Create Render account:** https://render.com
 
-   - Click "Convert with AI".
-   - The frontend will show progress and detailed statistics.
+2. **Create new Web Service:**
+   - Connect your GitHub repository
+   - Choose "Docker" environment
+   - Set build context to `./backend`
+   - Dockerfile path: `./backend/Dockerfile`
 
-4. **Listen to your audiobook**
-   - Use the built-in audio player to play chapters.
-   - View chapter navigation, speaker info, and technical details.
+3. **Set Environment Variables in Render:**
+   ```
+   FLASK_ENV=production
+   SECRET_KEY=your-super-secure-secret-key
+   CORS_ORIGINS=https://your-frontend.netlify.app,https://localhost:8081
+   PORT=8080
+   ```
 
----
+#### 2. Deploy Frontend to Netlify
 
-## Troubleshooting
+1. **Create Netlify account:** https://netlify.com
 
-- If the backend is not running, check the health status in the frontend.
-- For GPU errors, ensure CUDA drivers are installed and compatible.
-- For missing dependencies, re-run the pip install command above.
+2. **Create new Site:**
+   - Connect your GitHub repository
+   - Build command: `npm run build`
+   - Publish directory: `web-build`
+   - Base directory: `frontend`
 
----
+3. **Set Environment Variables in Netlify:**
+   ```
+   REACT_APP_API_URL=https://your-backend.onrender.com
+   ```
 
-## Advanced
+#### 3. Set up GitHub Secrets for Full Stack CI/CD
 
-- To change conversion settings (word limit, speaker, etc.), modify parameters in [`backend/converter.py`](backend/converter.py).
-- For full book conversion, use the `/api/fullconvert` endpoint.
-- For chapter-by-chapter testing, use `/api/convert-audio-test`.
+Go to your repo → Settings → Secrets and variables → Actions:
 
----
+**Backend (Render):**
+```
+RENDER_SERVICE_ID=srv-xxxxxxxxxxxxxxxxxx
+RENDER_API_KEY=rnd_xxxxxxxxxxxxxxxxxxxx
+RENDER_SERVICE_URL=https://your-backend.onrender.com
+```
 
-## File Structure
+**Frontend (Netlify):**
+```
+NETLIFY_SITE_ID=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+NETLIFY_AUTH_TOKEN=nfp_xxxxxxxxxxxxxxxxxxxx
+NETLIFY_SITE_URL=https://your-frontend.netlify.app
+```
 
-- `backend/converter.py`: Main backend API and processing logic
-- `frontend/landing-page/src/App.js`: Main React app and UI
-- `uploads/`, `chapters/`, `audiobooks/`: Backend storage folders (auto-created)
+### Alternative: Deploy to Railway
 
----
+1. **Install Railway CLI:**
+   ```bash
+   npm install -g @railway/cli
+   ```
+
+2. **Deploy:**
+   ```bash
+   railway login
+   railway init
+   railway up
+   ```
+
+## 🧪 Testing
+
+**Run tests locally:**
+```bash
+cd backend
+python -m pytest tests/ -v
+```
+
+**Docker test:**
+```bash
+docker-compose run backend python -m pytest tests/ -v
+```
+
+## 🔧 CI/CD Pipeline
+
+The GitHub Actions workflow automatically:
+- ✅ **Tests backend:** Python tests + Docker build
+- ✅ **Tests frontend:** React Native web build
+- ✅ **Deploys backend:** To Render with health checks
+- ✅ **Deploys frontend:** To Netlify with build validation
+- ✅ **Full stack verification:** End-to-end connectivity tests
+- ✅ **Parallel deployment:** Backend and frontend deploy simultaneously
+
+## 🔒 Security Features
+
+- Production-ready Flask configuration
+- Secure secret key management via environment variables
+- CORS protection with configurable origins
+- Docker security best practices (non-root user)
+- HTTPS by default on Render
+- Input validation and file type restrictions
+
+## 📡 API Endpoints
+
+- `GET /health` - Health check
+- `POST /upload` - Upload and convert eBook
+- `GET /conversions` - List all conversions
+- `GET /conversions/<job_id>` - Get conversion status
+- `GET /download/<job_id>` - Download audio file
+
+## 📱 Usage
+
+### 🌐 **Production (Recommended)**
+1. **Access your web app:** `https://your-frontend.netlify.app`
+2. **Upload eBook** and monitor conversion in browser
+3. **Download audio** directly to your computer
+4. **Share with others:** Send them your Netlify URL!
+
+### 📱 **Mobile Development**
+1. **Launch Expo:** `npm start` in frontend folder
+2. **Scan QR code** with Expo Go app
+3. **Upload eBook** from your phone
+4. **Download audio** when complete
+
+### 💻 **Local Development**
+1. **Start backend:** `python app.py` (or `docker-compose up`)
+2. **Start frontend:** `npm run web` for browser or `npm start` for mobile
+
+## 📋 Supported File Types
+
+- PDF (`.pdf`)
+- EPUB (`.epub`)
+- Plain Text (`.txt`, `.text`)
+
+## ⚙️ Environment Variables
+
+Copy `.env.example` to `.env` and configure:
+
+```bash
+# Development
+FLASK_ENV=development
+SECRET_KEY=dev-secret-key
+CORS_ORIGINS=http://localhost:8081
+
+# Production (set in hosting provider)
+FLASK_ENV=production
+SECRET_KEY=super-secure-production-key
+CORS_ORIGINS=https://your-domain.com
+```
+
+## 📊 Monitoring
+
+- Health check endpoint: `/health`
+- Docker health checks configured
+- Render provides built-in monitoring
+- GitHub Actions deployment notifications
+
+## 🔄 Scaling
+
+**Current MVP limitations:**
+- In-memory job storage (lost on restart)
+- Single server instance
+- File storage on container filesystem
+
+**Future scaling options:**
+- Add Redis for job persistence
+- Implement queue system (Celery + Redis)
+- Use cloud storage (AWS S3, Google Cloud)
+- Add database for job history
+- Horizontal scaling with load balancer
+
+## 🛠️ Development
+
+**Hot reload with Docker:**
+```bash
+docker-compose up
+# Code changes trigger automatic reload
+```
+
+**Local debugging:**
+```bash
+cd backend
+FLASK_ENV=development python app.py
+```
+
+**Run specific tests:**
+```bash
+python -m pytest tests/test_app.py::TestHealthEndpoint -v
+```
+
+## 🤝 Contributing
+
+1. Fork the repository
+2. Create feature branch: `git checkout -b feature/amazing-feature`
+3. Commit changes: `git commit -m 'Add amazing feature'`
+4. Push to branch: `git push origin feature/amazing-feature`
+5. Open Pull Request
+
+CI/CD will automatically test your changes!
+
+## 📞 Support
+
+- **Issues:** GitHub Issues
+- **Deployment:** Check Render logs
+- **CI/CD:** GitHub Actions tab

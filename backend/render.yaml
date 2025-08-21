@@ -1,0 +1,32 @@
+services:
+  - type: web
+    name: ebookvoice-backend
+    env: docker
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    plan: free
+    region: oregon
+    branch: main
+    healthCheckPath: /health
+    envVars:
+      - key: FLASK_ENV
+        value: production
+      - key: SECRET_KEY
+        generateValue: true
+      - key: CORS_ORIGINS
+        value: https://localhost:8081,https://expo.dev,exp://192.168.1.149:8081
+      - key: PORT
+        value: 8080
+      - key: PYTHONUNBUFFERED
+        value: "1"
+    buildCommand: ""
+    startCommand: "python app.py"
+    
+    # Auto-deploy on push to main branch
+    autoDeploy: true
+    
+    # Disk for file storage
+    disk:
+      name: ebookvoice-storage
+      mountPath: /app
+      sizeGB: 1

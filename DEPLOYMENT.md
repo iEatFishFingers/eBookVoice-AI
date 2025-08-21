@@ -1,423 +1,352 @@
-# eBookVoice-AI CUDA Deployment Guide
+# 🚀 Deployment Guide
 
-## Overview
-This guide explains how to deploy the eBookVoice-AI application on a CUDA-capable VM with secure cloud storage integration.
+Complete step-by-step guide to deploy eBookVoice AI to production.
 
 ## Prerequisites
 
-### Hardware Requirements
-- NVIDIA GPU with CUDA 11.8+ support
-- Minimum 8GB GPU VRAM (16GB+ recommended)
-- 16GB+ system RAM
-- 100GB+ storage space
+- GitHub account
+- Git installed locally
+- Docker (optional, for local testing)
 
-### Software Requirements
-- Ubuntu 20.04 LTS or newer
-- Docker Engine 20.10+
-- Docker Compose 2.0+
-- NVIDIA Container Toolkit
-- Git
+## 🌟 Quick Deploy to Render (Recommended)
 
-## Step 1: VM Setup
+### Step 1: Prepare Repository
 
-### 1.1 CUDA VM Creation
-**AWS EC2:**
+1. **Fork/clone this repository**
+2. **Push to your GitHub repo:**
+   ```bash
+   git add .
+   git commit -m "Initial commit with production setup"
+   git push origin main
+   ```
+
+### Step 2: Create Render Account
+
+1. Go to https://render.com
+2. Sign up with your GitHub account
+3. Verify your email
+
+### Step 3: Deploy Backend to Render
+
+1. **Create New Web Service:**
+   - Click "New" → "Web Service"
+   - Connect your GitHub repository
+   - Select your eBookVoice repository
+
+2. **Configure Service:**
+   ```
+   Name: ebookvoice-backend
+   Environment: Docker
+   Branch: main
+   Build Context: ./backend
+   Dockerfile Path: ./backend/Dockerfile
+   ```
+
+3. **Set Environment Variables:**
+   ```bash
+   FLASK_ENV=production
+   SECRET_KEY=your-super-secure-random-key-here
+   CORS_ORIGINS=https://your-frontend-name.netlify.app,https://localhost:8081
+   PORT=8080
+   ```
+
+4. **Choose Plan:**
+   - Free tier (0 GB RAM, sleeps after 15min inactivity)
+   - Or Starter ($7/month, always on)
+
+5. **Deploy:**
+   - Click "Create Web Service"
+   - Wait 5-10 minutes for first deployment
+   - Your API will be available at `https://your-backend-name.onrender.com`
+   - **Copy this URL** - you'll need it for the frontend!
+
+### Step 4: Deploy Frontend to Netlify
+
+1. **Create Netlify Account:**
+   - Go to https://netlify.com
+   - Sign up with your GitHub account
+
+2. **Create New Site:**
+   - Click "Add new site" → "Import an existing project"
+   - Choose GitHub and select your repository
+   - Configure build settings:
+   ```
+   Base directory: frontend
+   Build command: npm run build
+   Publish directory: web-build
+   ```
+
+3. **Set Environment Variables in Netlify:**
+   - Go to Site settings → Environment variables
+   - Add:
+   ```bash
+   REACT_APP_API_URL=https://your-backend-name.onrender.com
+   ```
+
+4. **Deploy:**
+   - Click "Deploy site"
+   - Wait 2-3 minutes for first deployment
+   - Your app will be available at `https://your-frontend-name.netlify.app`
+
+### Step 5: Test Full Stack Deployment
+
+1. **Backend Health Check:**
+   ```bash
+   curl https://your-backend-name.onrender.com/health
+   ```
+   Expected response:
+   ```json
+   {
+     "status": "healthy",
+     "timestamp": "2024-xx-xxT12:xx:xx.xxxxxx",
+     "service": "eBookVoice AI Converter"
+   }
+   ```
+
+2. **Frontend Access:**
+   - Visit `https://your-frontend-name.netlify.app`
+   - You should see the eBookVoice AI interface
+   - Try uploading a text file to test the full workflow
+
+3. **Full Workflow Test:**
+   - Upload a small text file
+   - Wait for conversion to complete
+   - Download the generated audio file
+   - Success! 🎉
+
+### Step 6: Setup Full Stack CI/CD (Recommended)
+
+1. **Get Render API Credentials:**
+   - Go to Render Dashboard → Account Settings → API Keys
+   - Create new API key
+   - Copy Service ID from your backend service URL
+
+2. **Get Netlify API Credentials:**
+   - Go to Netlify Dashboard → User settings → Personal access tokens
+   - Generate new token
+   - Copy Site ID from your site settings
+
+3. **Add GitHub Secrets:**
+   - Go to your repo → Settings → Secrets and variables → Actions
+   - Add all the following secrets:
+   
+   **Backend (Render):**
+   ```
+   RENDER_SERVICE_ID=srv-xxxxxxxxxxxxxxxxxx
+   RENDER_API_KEY=rnd_xxxxxxxxxxxxxxxxxxxx
+   RENDER_SERVICE_URL=https://your-backend.onrender.com
+   ```
+   
+   **Frontend (Netlify):**
+   ```
+   NETLIFY_SITE_ID=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+   NETLIFY_AUTH_TOKEN=nfp_xxxxxxxxxxxxxxxxxxxx
+   NETLIFY_SITE_URL=https://your-frontend.netlify.app
+   ```
+
+4. **Test Full Stack CI/CD:**
+   - Make a small change to any code
+   - Push to main branch
+   - Check GitHub Actions tab
+   - Both backend and frontend will deploy automatically! 🚀
+
+## 🚄 Alternative: Deploy to Railway
+
+### Step 1: Install Railway CLI
+
 ```bash
-# Launch p3.2xlarge or g4dn.xlarge instance
-# Choose Deep Learning AMI (Ubuntu 20.04)
-# Configure security groups for ports 80, 443, 5000
+npm install -g @railway/cli
 ```
 
-**Google Cloud:**
-```bash
-# Create instance with GPU
-gcloud compute instances create ebookvoice-gpu \
-    --zone=us-central1-a \
-    --machine-type=n1-standard-4 \
-    --accelerator=type=nvidia-tesla-t4,count=1 \
-    --image-family=ubuntu-2004-lts \
-    --image-project=ubuntu-os-cloud \
-    --boot-disk-size=100GB \
-    --maintenance-policy=TERMINATE
-```
-
-### 1.2 Install Docker and NVIDIA Container Toolkit
+### Step 2: Deploy
 
 ```bash
-# Update system
-sudo apt update && sudo apt upgrade -y
+# Login
+railway login
 
-# Install Docker
-curl -fsSL https://get.docker.com -o get-docker.sh
-sudo sh get-docker.sh
-sudo usermod -aG docker $USER
+# Initialize in backend directory
+cd backend
+railway init
 
-# Install Docker Compose
-sudo curl -L "https://github.com/docker/compose/releases/download/v2.20.0/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
-sudo chmod +x /usr/local/bin/docker-compose
-
-# Install NVIDIA Container Toolkit
-distribution=$(. /etc/os-release;echo $ID$VERSION_ID)
-curl -s -L https://nvidia.github.io/nvidia-docker/gpgkey | sudo apt-key add -
-curl -s -L https://nvidia.github.io/nvidia-docker/$distribution/nvidia-docker.list | sudo tee /etc/apt/sources.list.d/nvidia-docker.list
-
-sudo apt update
-sudo apt install -y nvidia-docker2
-sudo systemctl restart docker
-
-# Test NVIDIA Docker
-sudo docker run --rm --gpus all nvidia/cuda:11.8-base-ubuntu20.04 nvidia-smi
+# Deploy
+railway up
 ```
 
-## Step 2: Cloud Storage Setup
+### Step 3: Configure Environment
 
-### 2.1 AWS S3 Setup
 ```bash
-# Create S3 bucket
-aws s3 mb s3://your-ebookvoice-bucket --region us-east-1
-
-# Set bucket policy for secure access
-aws s3api put-bucket-encryption \
-    --bucket your-ebookvoice-bucket \
-    --server-side-encryption-configuration '{
-        "Rules": [
-            {
-                "ApplyServerSideEncryptionByDefault": {
-                    "SSEAlgorithm": "AES256"
-                }
-            }
-        ]
-    }'
-
-# Block public access
-aws s3api put-public-access-block \
-    --bucket your-ebookvoice-bucket \
-    --public-access-block-configuration \
-    BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true
+# Set environment variables
+railway variables set FLASK_ENV=production
+railway variables set SECRET_KEY=your-secure-key
+railway variables set CORS_ORIGINS=https://localhost:8081
 ```
 
-### 2.2 Google Cloud Storage Setup
+## 🐳 Local Production Testing
+
+Test production build locally before deployment:
+
 ```bash
-# Create bucket
-gsutil mb -p your-project-id -c STANDARD -l us-central1 gs://your-ebookvoice-bucket
+# Build and run with Docker Compose
+docker-compose up --build
 
-# Set encryption
-gsutil encryption set -k projects/your-project-id/locations/global/keyRings/your-ring/cryptoKeys/your-key gs://your-ebookvoice-bucket
-
-# Create service account
-gcloud iam service-accounts create ebookvoice-storage \
-    --description="eBookVoice Storage Service Account" \
-    --display-name="eBookVoice Storage"
-
-# Grant permissions
-gcloud projects add-iam-policy-binding your-project-id \
-    --member="serviceAccount:ebookvoice-storage@your-project-id.iam.gserviceaccount.com" \
-    --role="roles/storage.objectAdmin"
-
-# Download service account key
-gcloud iam service-accounts keys create ~/gcp-credentials.json \
-    --iam-account=ebookvoice-storage@your-project-id.iam.gserviceaccount.com
+# Or build and run manually
+cd backend
+docker build -t ebookvoice-backend .
+docker run -p 8080:8080 -e FLASK_ENV=production ebookvoice-backend
 ```
 
-## Step 3: Application Deployment
+## 📱 Update Frontend for Production
 
-### 3.1 Clone Repository
-```bash
-git clone https://github.com/your-username/eBookVoice-AI-Current.git
-cd eBookVoice-AI-Current/backend
-```
+1. **Update API URL in `frontend/App.js`:**
+   ```javascript
+   const API_BASE_URL = 'https://your-service-name.onrender.com';
+   ```
 
-### 3.2 Configure Environment
-```bash
-# Copy environment template
-cp .env.example .env
+2. **Test with Expo:**
+   ```bash
+   cd frontend
+   npm start
+   ```
 
-# Edit configuration
-nano .env
-```
+## 🔧 Environment Variables Reference
 
-**Required environment variables:**
-```env
-# Application
-SECRET_KEY=your-super-secret-key-change-this
-JWT_SECRET_KEY=your-jwt-secret-key-change-this
-FLASK_ENV=production
+### Required Production Variables
 
-# Cloud Storage (choose one)
-CLOUD_STORAGE_PROVIDER=aws
-AWS_ACCESS_KEY_ID=your-access-key
-AWS_SECRET_ACCESS_KEY=your-secret-key
-AWS_S3_BUCKET=your-ebookvoice-bucket
-AWS_REGION=us-east-1
+| Variable | Description | Example |
+|----------|-------------|---------|
+| `FLASK_ENV` | Flask environment | `production` |
+| `SECRET_KEY` | Flask secret key | `super-secure-random-key` |
+| `PORT` | Server port | `8080` |
+| `CORS_ORIGINS` | Allowed origins | `https://expo.dev,https://localhost:8081` |
 
-# OR for GCP
-# CLOUD_STORAGE_PROVIDER=gcp
-# GOOGLE_APPLICATION_CREDENTIALS=/app/gcp-credentials.json
-# GCP_STORAGE_BUCKET=your-ebookvoice-bucket
-# GCP_PROJECT_ID=your-project-id
+### Optional Variables
 
-# Redis
-REDIS_PASSWORD=your-redis-password
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `UPLOAD_FOLDER` | Upload directory | `uploads` |
+| `AUDIOBOOKS_FOLDER` | Audio output directory | `audiobooks` |
 
-# Security
-CORS_ORIGINS=https://yourdomain.com
-RATE_LIMIT_PER_MINUTE=60
+## 🔍 Monitoring & Troubleshooting
 
-# GPU
-CUDA_VISIBLE_DEVICES=0
-```
+### Check Deployment Status
 
-### 3.3 Setup SSL Certificates (Production)
-```bash
-# Create nginx directory
-mkdir -p nginx/ssl
+1. **Render Dashboard:**
+   - View logs in real-time
+   - Monitor resource usage
+   - Check deployment history
 
-# Generate self-signed certificate (for testing)
-openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
-    -keyout nginx/ssl/nginx.key \
-    -out nginx/ssl/nginx.crt
-
-# For production, use Let's Encrypt
-sudo apt install certbot
-sudo certbot certonly --standalone -d yourdomain.com
-```
-
-### 3.4 Create Nginx Configuration
-```bash
-mkdir -p nginx
-```
-
-Create `nginx/nginx.conf`:
-```nginx
-events {
-    worker_connections 1024;
-}
-
-http {
-    upstream backend {
-        server ebookvoice-backend:5000;
-    }
-
-    server {
-        listen 80;
-        server_name yourdomain.com;
-        return 301 https://$server_name$request_uri;
-    }
-
-    server {
-        listen 443 ssl http2;
-        server_name yourdomain.com;
-
-        ssl_certificate /etc/nginx/ssl/nginx.crt;
-        ssl_certificate_key /etc/nginx/ssl/nginx.key;
-        ssl_protocols TLSv1.2 TLSv1.3;
-        ssl_ciphers ECDHE-RSA-AES256-GCM-SHA512:DHE-RSA-AES256-GCM-SHA512;
-
-        client_max_body_size 50M;
-
-        location / {
-            proxy_pass http://backend;
-            proxy_set_header Host $host;
-            proxy_set_header X-Real-IP $remote_addr;
-            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-            proxy_set_header X-Forwarded-Proto $scheme;
-            proxy_read_timeout 300s;
-            proxy_connect_timeout 75s;
-        }
-
-        location /health {
-            proxy_pass http://backend/health;
-            access_log off;
-        }
-    }
-}
-```
-
-## Step 4: Build and Deploy
-
-### 4.1 Build Application
-```bash
-# Build the application
-docker-compose build
-
-# Start services
-docker-compose up -d
-
-# Check status
-docker-compose ps
-docker-compose logs -f ebookvoice-backend
-```
-
-### 4.2 Production Deployment with SSL
-```bash
-# Deploy with production profile
-docker-compose --profile production up -d
-
-# Verify deployment
-curl -k https://yourdomain.com/health
-```
-
-### 4.3 Enable Monitoring (Optional)
-```bash
-# Start monitoring stack
-docker-compose --profile monitoring up -d
-
-# Access Grafana at http://yourdomain.com:3001
-# Default login: admin/admin
-```
-
-## Step 5: Security Hardening
-
-### 5.1 Firewall Configuration
-```bash
-# UFW firewall setup
-sudo ufw enable
-sudo ufw allow 22/tcp    # SSH
-sudo ufw allow 80/tcp    # HTTP
-sudo ufw allow 443/tcp   # HTTPS
-sudo ufw deny 5000/tcp   # Block direct backend access
-sudo ufw deny 6379/tcp   # Block direct Redis access
-```
-
-### 5.2 Docker Security
-```bash
-# Create non-root user for containers
-sudo groupadd docker-users
-sudo usermod -aG docker-users ebookvoice
-
-# Set up log rotation
-sudo nano /etc/logrotate.d/docker-containers
-```
-
-### 5.3 Regular Updates
-```bash
-# Create update script
-cat > update.sh << 'EOF'
-#!/bin/bash
-set -e
-
-echo "Updating eBookVoice-AI..."
-git pull origin main
-docker-compose build --no-cache
-docker-compose up -d
-docker system prune -f
-
-echo "Update complete!"
-EOF
-
-chmod +x update.sh
-```
-
-## Step 6: Monitoring and Maintenance
-
-### 6.1 Health Checks
-```bash
-# Application health
-curl https://yourdomain.com/health
-
-# Docker containers
-docker-compose ps
-
-# GPU utilization
-nvidia-smi
-
-# Resource usage
-htop
-```
-
-### 6.2 Log Management
-```bash
-# View application logs
-docker-compose logs -f ebookvoice-backend
-
-# View specific service logs
-docker-compose logs redis
-docker-compose logs nginx
-
-# Clean old logs
-docker system prune -f
-```
-
-### 6.3 Backup Strategy
-```bash
-# Backup script
-cat > backup.sh << 'EOF'
-#!/bin/bash
-DATE=$(date +%Y%m%d_%H%M%S)
-BACKUP_DIR="/backup/ebookvoice_$DATE"
-
-mkdir -p $BACKUP_DIR
-docker-compose exec redis redis-cli --rdb /tmp/dump.rdb
-docker cp $(docker-compose ps -q redis):/tmp/dump.rdb $BACKUP_DIR/
-cp .env $BACKUP_DIR/
-tar -czf $BACKUP_DIR.tar.gz $BACKUP_DIR
-rm -rf $BACKUP_DIR
-
-echo "Backup created: $BACKUP_DIR.tar.gz"
-EOF
-
-chmod +x backup.sh
-
-# Schedule backups
-echo "0 2 * * * /path/to/backup.sh" | crontab -
-```
-
-## Troubleshooting
+2. **Health Check:**
+   ```bash
+   curl https://your-service.onrender.com/health
+   ```
 
 ### Common Issues
 
-1. **CUDA not detected:**
+**Issue: Service won't start**
+- Check environment variables are set
+- Verify Dockerfile builds locally
+- Check Render logs for Python errors
+
+**Issue: CORS errors in frontend**
+- Add your Expo development URL to `CORS_ORIGINS`
+- Format: `exp://192.168.x.x:19006`
+
+**Issue: File uploads fail**
+- Check file size limits (50MB max)
+- Verify upload directory permissions
+- Monitor disk space (1GB max on free tier)
+
+### Log Access
+
+**Render Logs:**
+```bash
+# Install Render CLI (optional)
+npm install -g @render/cli
+render login
+render logs
+```
+
+**Application Logs:**
+- Available in Render dashboard
+- Real-time streaming
+- Downloadable for analysis
+
+## 🔄 Updates & Rollbacks
+
+### Automated Updates (CI/CD)
+
+Once CI/CD is setup, every push to main branch automatically:
+1. Runs tests
+2. Builds Docker image  
+3. Deploys to Render
+4. Performs health check
+
+### Manual Updates
+
+1. **Push code changes:**
    ```bash
-   # Check NVIDIA drivers
-   nvidia-smi
-   
-   # Restart Docker with GPU support
-   sudo systemctl restart docker
+   git push origin main
    ```
 
-2. **Out of memory errors:**
-   ```bash
-   # Check GPU memory
-   nvidia-smi
-   
-   # Reduce batch size in TTS config
-   export TTS_BATCH_SIZE=1
-   ```
+2. **Trigger deployment in Render Dashboard:**
+   - Go to your service
+   - Click "Manual Deploy" → "Deploy latest commit"
 
-3. **Storage permission errors:**
-   ```bash
-   # Fix volume permissions
-   sudo chown -R 1000:1000 uploads audiobooks chapters logs
-   ```
+### Rollback
 
-4. **Network connectivity:**
-   ```bash
-   # Check container networking
-   docker network ls
-   docker-compose exec ebookvoice-backend ping redis
-   ```
+1. **In Render Dashboard:**
+   - Go to Deployments tab
+   - Click "Rollback" on previous successful deployment
 
-### Performance Optimization
+2. **Or redeploy specific commit:**
+   - Select commit from dropdown
+   - Click "Deploy"
 
-1. **TTS Model Optimization:**
-   - Use smaller models for faster processing
-   - Enable model caching
-   - Adjust batch sizes based on GPU memory
+## 🛡️ Security Checklist
 
-2. **Storage Optimization:**
-   - Enable compression for uploads
-   - Implement cleanup policies
-   - Use CDN for file delivery
+- ✅ Use strong `SECRET_KEY` (32+ random characters)
+- ✅ Set `FLASK_ENV=production`
+- ✅ Configure CORS origins properly
+- ✅ Never commit secrets to Git
+- ✅ Use HTTPS only (automatic on Render)
+- ✅ Regular dependency updates
+- ✅ Monitor logs for suspicious activity
 
-3. **Scaling:**
-   - Use load balancer for multiple instances
-   - Implement horizontal scaling with Kubernetes
-   - Use GPU clusters for high-volume processing
+## 💰 Cost Estimates
 
-## Support
+### Render Free Tier
+- **Cost:** $0/month
+- **Limitations:** 
+  - 750 hours/month
+  - Sleeps after 15min inactivity
+  - 1GB storage
+  - Shared CPU/RAM
 
-For issues and support:
-- Check application logs: `docker-compose logs`
-- Monitor system resources: `htop`, `nvidia-smi`
-- Review security logs: `/var/log/auth.log`
-- Check firewall status: `sudo ufw status`
+### Render Starter
+- **Cost:** $7/month
+- **Features:**
+  - Always on
+  - Dedicated resources
+  - Custom domains
+  - Priority support
+
+### Railway
+- **Cost:** Usage-based
+- **Free tier:** $5 credit monthly
+- **Typical cost:** $5-15/month for MVP
+
+## 📞 Support
+
+**Render Support:**
+- Documentation: https://render.com/docs
+- Community: https://community.render.com
+- Status: https://status.render.com
+
+**Railway Support:**
+- Documentation: https://docs.railway.app
+- Discord: https://discord.gg/railway
+- Status: https://status.railway.app
+
+**Project Issues:**
+- GitHub Issues: Create issue in your repository
+- Include deployment logs and error messages

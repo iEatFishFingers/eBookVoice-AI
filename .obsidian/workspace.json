@@ -1,0 +1,186 @@
+{
+  "main": {
+    "id": "2a4030aefaf5bd24",
+    "type": "split",
+    "children": [
+      {
+        "id": "a021f17d86b85f0a",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "1489ff159366824b",
+            "type": "leaf",
+            "state": {
+              "type": "markdown",
+              "state": {
+                "file": "DEPLOYMENT.md",
+                "mode": "source",
+                "source": false
+              },
+              "icon": "lucide-file",
+              "title": "DEPLOYMENT"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "vertical"
+  },
+  "left": {
+    "id": "c16848cc2a7762a7",
+    "type": "split",
+    "children": [
+      {
+        "id": "1cceb4047a72da32",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "b2479606ada33c1c",
+            "type": "leaf",
+            "state": {
+              "type": "file-explorer",
+              "state": {
+                "sortOrder": "alphabetical",
+                "autoReveal": false
+              },
+              "icon": "lucide-folder-closed",
+              "title": "Files"
+            }
+          },
+          {
+            "id": "acde4c6931c403c8",
+            "type": "leaf",
+            "state": {
+              "type": "search",
+              "state": {
+                "query": "",
+                "matchingCase": false,
+                "explainSearch": false,
+                "collapseAll": false,
+                "extraContext": false,
+                "sortOrder": "alphabetical"
+              },
+              "icon": "lucide-search",
+              "title": "Search"
+            }
+          },
+          {
+            "id": "7528ca805039a96b",
+            "type": "leaf",
+            "state": {
+              "type": "bookmarks",
+              "state": {},
+              "icon": "lucide-bookmark",
+              "title": "Bookmarks"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "horizontal",
+    "width": 300
+  },
+  "right": {
+    "id": "3355694f9b1a8f65",
+    "type": "split",
+    "children": [
+      {
+        "id": "81c639db5cb235c2",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "d6ef61701a735c6b",
+            "type": "leaf",
+            "state": {
+              "type": "backlink",
+              "state": {
+                "file": "DEPLOYMENT.md",
+                "collapseAll": false,
+                "extraContext": false,
+                "sortOrder": "alphabetical",
+                "showSearch": false,
+                "searchQuery": "",
+                "backlinkCollapsed": false,
+                "unlinkedCollapsed": true
+              },
+              "icon": "links-coming-in",
+              "title": "Backlinks for DEPLOYMENT"
+            }
+          },
+          {
+            "id": "e2a982527fafbb20",
+            "type": "leaf",
+            "state": {
+              "type": "outgoing-link",
+              "state": {
+                "file": "DEPLOYMENT.md",
+                "linksCollapsed": false,
+                "unlinkedCollapsed": true
+              },
+              "icon": "links-going-out",
+              "title": "Outgoing links from DEPLOYMENT"
+            }
+          },
+          {
+            "id": "1191a02bb95eab9f",
+            "type": "leaf",
+            "state": {
+              "type": "tag",
+              "state": {
+                "sortOrder": "frequency",
+                "useHierarchy": true,
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-tags",
+              "title": "Tags"
+            }
+          },
+          {
+            "id": "f03712aba2c712ec",
+            "type": "leaf",
+            "state": {
+              "type": "outline",
+              "state": {
+                "file": "DEPLOYMENT.md",
+                "followCursor": false,
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-list",
+              "title": "Outline of DEPLOYMENT"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "horizontal",
+    "width": 300,
+    "collapsed": true
+  },
+  "left-ribbon": {
+    "hiddenItems": {
+      "switcher:Open quick switcher": false,
+      "graph:Open graph view": false,
+      "canvas:Create new canvas": false,
+      "daily-notes:Open today's daily note": false,
+      "templates:Insert template": false,
+      "command-palette:Open command palette": false,
+      "bases:Create new base": false
+    }
+  },
+  "active": "1489ff159366824b",
+  "lastOpenFiles": [
+    "DEPLOYMENT.md.tmp.14964.1755777140770",
+    "DEPLOYMENT.md.tmp.14964.1755777125889",
+    "DEPLOYMENT.md.tmp.14964.1755777116268",
+    "README.md.tmp.14964.1755777100541",
+    "README.md.tmp.14964.1755777088283",
+    "README.md.tmp.14964.1755777078660",
+    "frontend/App.js.tmp.14964.1755777057464",
+    "frontend/App.js.tmp.14964.1755777048746",
+    "frontend/package.json.tmp.14964.1755776945607",
+    "frontend/netlify.toml",
+    "frontend/netlify.toml.tmp.14964.1755776925706"
+  ]
+}

@@ -1,45 +1,47 @@
-# Lightweight CPU-only Dockerfile for free hosting
+# Use Python 3.11 slim image for smaller size
 FROM python:3.11-slim
 
-# Set working directory
+# Set environment variables
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    FLASK_ENV=production \
+    PORT=8080
+
+# Create app directory
 WORKDIR /app
 
-# Install system dependencies (minimal for free tier)
+# Install system dependencies required for TTS and PDF processing
 RUN apt-get update && apt-get install -y \
-    gcc \
-    g++ \
-    libssl-dev \
-    espeak-ng \
-    espeak-ng-data \
-    curl \
+    espeak espeak-data libespeak1 libespeak-dev \
+    festival festvox-kallpc16k \
+    alsa-utils \
+    pulseaudio-utils \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy requirements first for better caching
-COPY requirements.cpu.txt requirements.txt
+# Copy requirements first for better Docker layer caching
+COPY requirements.txt .
+
+# Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy application code
 COPY . .
 
-# Create necessary directories
-RUN mkdir -p uploads chapters audiobooks logs temp
+# Create necessary directories with proper permissions
+RUN mkdir -p uploads audiobooks && \
+    chmod 755 uploads audiobooks
 
-# Set environment variables
-ENV FLASK_ENV=production
-ENV PYTHONPATH=/app
-ENV PORT=8080
-
-# Create non-root user
-RUN useradd --create-home --shell /bin/bash app
-RUN chown -R app:app /app
+# Create non-root user for security
+RUN useradd --create-home --shell /bin/bash app && \
+    chown -R app:app /app
 USER app
 
-# Expose port (use $PORT for cloud platforms)
+# Health check
+HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
+    CMD python -c "import requests; requests.get('http://localhost:8080/health')" || exit 1
+
+# Expose port
 EXPOSE 8080
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
-    CMD curl -f http://localhost:8080/health || exit 1
-
-# Use gunicorn for production
-CMD gunicorn --bind 0.0.0.0:$PORT --workers 2 --timeout 300 "app:create_app()"
+# Run the application
+CMD ["python", "app.py"]
