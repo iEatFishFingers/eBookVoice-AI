@@ -92,3 +92,5 @@ backend/audiobooks/*
 .env.production
 *.key
 *.pem
+
+old version/

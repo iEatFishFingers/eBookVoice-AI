@@ -3,6 +3,10 @@ Flask==2.3.3
 Flask-CORS==4.0.0
 gunicorn==21.2.0
 
+# Authentication
+PyJWT==2.8.0
+bcrypt==4.1.2
+
 # File processing libraries
 PyPDF2==3.0.1
 ebooklib==0.19
@@ -11,6 +15,12 @@ lxml==4.9.3
 
 # Text-to-speech
 pyttsx3==2.90
+
+# Enhanced TTS (optional - falls back to pyttsx3 if not available)
+# Uncomment for production with enhanced voices:
+# TTS==0.22.0
+# torch>=1.13.0
+# torchaudio>=0.13.0
 
 # Health check
 requests==2.31.0

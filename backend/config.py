@@ -8,6 +8,12 @@ class Config:
     UPLOAD_FOLDER = os.environ.get('UPLOAD_FOLDER') or 'uploads'
     AUDIOBOOKS_FOLDER = os.environ.get('AUDIOBOOKS_FOLDER') or 'audiobooks'
     
+    # Database settings
+    DATABASE_PATH = os.environ.get('DATABASE_PATH') or 'audiobook.db'
+    
+    # JWT settings
+    JWT_EXPIRATION_HOURS = 24 * 7  # 7 days
+    
     # CORS settings
     CORS_ORIGINS = os.environ.get('CORS_ORIGINS', '*').split(',')
     

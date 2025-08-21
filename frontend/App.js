@@ -10,6 +10,10 @@ import {
   Platform,
 } from 'react-native';
 import * as DocumentPicker from 'expo-document-picker';
+import { AuthProvider, useAuth } from './src/context/AuthContext';
+import AuthScreen from './src/screens/AuthScreen';
+import DashboardScreen from './src/screens/DashboardScreen';
+import VoiceSelector from './src/components/VoiceSelector';
 
 // Environment-based API URL configuration
 const getApiBaseUrl = () => {
@@ -29,17 +33,57 @@ const getApiBaseUrl = () => {
 
 const API_BASE_URL = getApiBaseUrl();
 
-export default function App() {
+function MainApp() {
   const [conversions, setConversions] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [selectedVoice, setSelectedVoice] = useState('basic_0');
+  const [showDashboard, setShowDashboard] = useState(false);
+  const { isAuthenticated, loading: authLoading, user, getAuthHeaders } = useAuth();
 
   useEffect(() => {
-    fetchConversions();
-  }, []);
+    if (isAuthenticated) {
+      fetchConversions();
+    }
+  }, [isAuthenticated]);
+
+  if (authLoading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#007AFF" />
+        <Text style={styles.loadingText}>Loading...</Text>
+      </View>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return <AuthScreen />;
+  }
+
+  if (showDashboard) {
+    return (
+      <View style={styles.container}>
+        <View style={styles.header}>
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={() => setShowDashboard(false)}
+          >
+            <Text style={styles.backButtonText}>← Back</Text>
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Dashboard</Text>
+        </View>
+        <DashboardScreen />
+      </View>
+    );
+  }
 
   const fetchConversions = async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/conversions`);
+      const response = await fetch(`${API_BASE_URL}/conversions`, {
+        headers: {
+          'Content-Type': 'application/json',
+          ...getAuthHeaders(),
+        },
+      });
       const data = await response.json();
       if (data.success) {
         setConversions(data.data);
@@ -75,12 +119,14 @@ export default function App() {
         type: file.mimeType,
         name: file.name,
       });
+      formData.append('voice_id', selectedVoice);
 
       const response = await fetch(`${API_BASE_URL}/upload`, {
         method: 'POST',
         body: formData,
         headers: {
           'Content-Type': 'multipart/form-data',
+          ...getAuthHeaders(),
         },
       });
 
@@ -126,8 +172,24 @@ export default function App() {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>eBookVoice AI</Text>
-      <Text style={styles.subtitle}>Convert eBooks to Audio</Text>
+      <View style={styles.header}>
+        <View>
+          <Text style={styles.title}>eBookVoice AI</Text>
+          <Text style={styles.subtitle}>Convert eBooks to Audio</Text>
+        </View>
+        <TouchableOpacity
+          style={styles.dashboardButton}
+          onPress={() => setShowDashboard(true)}
+        >
+          <Text style={styles.dashboardButtonText}>Dashboard</Text>
+        </TouchableOpacity>
+      </View>
+
+      <VoiceSelector
+        selectedVoice={selectedVoice}
+        onVoiceSelect={setSelectedVoice}
+        userTier={user?.subscription_tier || 'free'}
+      />
 
       <TouchableOpacity
         style={[styles.uploadButton, loading && styles.uploadButtonDisabled]}
@@ -199,6 +261,14 @@ export default function App() {
   );
 }
 
+export default function App() {
+  return (
+    <AuthProvider>
+      <MainApp />
+    </AuthProvider>
+  );
+}
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -209,18 +279,58 @@ const styles = StyleSheet.create({
     alignSelf: Platform.OS === 'web' ? 'center' : 'stretch',
     width: '100%',
   },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#f5f5f5',
+  },
+  loadingText: {
+    marginTop: 10,
+    color: '#666',
+    fontSize: 16,
+  },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  headerTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#333',
+  },
+  backButton: {
+    backgroundColor: '#007AFF',
+    paddingHorizontal: 15,
+    paddingVertical: 8,
+    borderRadius: 8,
+  },
+  backButtonText: {
+    color: '#fff',
+    fontWeight: 'bold',
+  },
+  dashboardButton: {
+    backgroundColor: '#4CAF50',
+    paddingHorizontal: 15,
+    paddingVertical: 8,
+    borderRadius: 8,
+  },
+  dashboardButtonText: {
+    color: '#fff',
+    fontWeight: 'bold',
+  },
   title: {
     fontSize: 28,
     fontWeight: 'bold',
-    textAlign: 'center',
     color: '#333',
     marginBottom: 5,
   },
   subtitle: {
     fontSize: 16,
-    textAlign: 'center',
     color: '#666',
-    marginBottom: 30,
+    marginBottom: 10,
   },
   uploadButton: {
     backgroundColor: '#007AFF',
