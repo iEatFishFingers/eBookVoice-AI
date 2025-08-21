@@ -14,6 +14,7 @@ import { AuthProvider, useAuth } from './src/context/AuthContext';
 import AuthScreen from './src/screens/AuthScreen';
 import DashboardScreen from './src/screens/DashboardScreen';
 import VoiceSelector from './src/components/VoiceSelector';
+import AudioPlayer from './src/components/AudioPlayer';
 import Button from './src/components/ui/Button';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from './src/components/ui/Card';
 import { colors, spacing, borderRadius, typography } from './src/theme/colors';
@@ -42,13 +43,41 @@ function MainApp() {
   const [loading, setLoading] = useState(false);
   const [selectedVoice, setSelectedVoice] = useState('basic_0');
   const [showDashboard, setShowDashboard] = useState(false);
+  const [serverOnline, setServerOnline] = useState(true);
+  const [currentJobId, setCurrentJobId] = useState(null);
+  const [showAudioPlayer, setShowAudioPlayer] = useState(false);
+  const [currentAudioUrl, setCurrentAudioUrl] = useState(null);
+  const [currentAudioTitle, setCurrentAudioTitle] = useState('');
   const { isAuthenticated, loading: authLoading, user, getAuthHeaders } = useAuth();
 
   useEffect(() => {
     if (isAuthenticated) {
       fetchConversions();
     }
+    
+    // Start health check polling
+    const healthInterval = setInterval(checkServerHealth, 30000); // Check every 30 seconds
+    checkServerHealth(); // Check immediately
+    
+    return () => clearInterval(healthInterval);
   }, [isAuthenticated]);
+
+  // Poll for job progress when we have an active conversion
+  useEffect(() => {
+    let progressInterval;
+    
+    if (currentJobId) {
+      progressInterval = setInterval(() => {
+        pollJobProgress(currentJobId);
+      }, 2000); // Poll every 2 seconds
+    }
+    
+    return () => {
+      if (progressInterval) {
+        clearInterval(progressInterval);
+      }
+    };
+  }, [currentJobId]);
 
   if (authLoading) {
     return (
@@ -78,6 +107,59 @@ function MainApp() {
     );
   }
 
+  const checkServerHealth = async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/health`, {
+        method: 'GET',
+        timeout: 10000, // 10 second timeout
+      });
+      
+      if (response.ok) {
+        setServerOnline(true);
+      } else {
+        setServerOnline(false);
+      }
+    } catch (error) {
+      setServerOnline(false);
+    }
+  };
+
+  const pollJobProgress = async (jobId) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/conversions/${jobId}`, {
+        headers: {
+          'Content-Type': 'application/json',
+          ...getAuthHeaders(),
+        },
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success) {
+          const job = data.data;
+          
+          // Update conversions list with latest job status
+          setConversions(prev => 
+            prev.map(conv => 
+              conv.id === jobId ? { ...conv, ...job } : conv
+            )
+          );
+          
+          // If job is complete or failed, stop polling
+          if (job.status === 'completed' || job.status === 'failed') {
+            setCurrentJobId(null);
+            fetchConversions(); // Refresh full list
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Failed to poll job progress:', error);
+      // Stop polling on repeated failures to prevent spam
+      setCurrentJobId(null);
+      setServerOnline(false);
+    }
+  };
+
   const fetchConversions = async () => {
     try {
       const response = await fetch(`${API_BASE_URL}/conversions`, {
@@ -89,9 +171,19 @@ function MainApp() {
       const data = await response.json();
       if (data.success) {
         setConversions(data.data);
+        
+        // Check if there are any active jobs that need polling
+        const activeJobs = data.data.filter(job => 
+          job.status === 'processing' || job.status === 'pending'
+        );
+        
+        if (activeJobs.length > 0 && !currentJobId) {
+          setCurrentJobId(activeJobs[0].id);
+        }
       }
     } catch (error) {
       console.error('Failed to fetch conversions:', error);
+      setServerOnline(false);
     }
   };
 
@@ -136,12 +228,26 @@ function MainApp() {
       
       if (data.success) {
         Alert.alert('Success', 'File uploaded successfully! Conversion started.');
+        
+        // Start tracking the new job
+        setCurrentJobId(data.data.id);
         fetchConversions();
       } else {
         Alert.alert('Error', data.error || 'Upload failed');
       }
     } catch (error) {
-      Alert.alert('Error', 'Failed to upload file');
+      console.error('Upload error:', error);
+      
+      // More specific error messages
+      let errorMessage = 'Failed to upload file';
+      if (error.message?.includes('Network')) {
+        errorMessage = 'Network error. Please check your connection and try again.';
+      } else if (error.message?.includes('timeout')) {
+        errorMessage = 'Upload timeout. The file might be too large or connection is slow.';
+      }
+      
+      Alert.alert('Upload Error', errorMessage);
+      setServerOnline(false); // Mark server as potentially offline
     } finally {
       setLoading(false);
     }
@@ -159,8 +265,27 @@ function MainApp() {
         Alert.alert('Download', `Audio file ready for: ${title}\nURL: ${url}`);
       }
     } catch (error) {
-      Alert.alert('Error', 'Failed to download audio file');
+      console.error('Download error:', error);
+      Alert.alert('Download Error', 'Failed to download audio file. Please check your connection and try again.');
     }
+  };
+
+  const openAudioPlayer = async (jobId, title) => {
+    try {
+      const audioUrl = `${API_BASE_URL}/download/${jobId}`;
+      setCurrentAudioUrl(audioUrl);
+      setCurrentAudioTitle(title);
+      setShowAudioPlayer(true);
+    } catch (error) {
+      console.error('Audio player error:', error);
+      Alert.alert('Player Error', 'Failed to open audio player. The audio file might not be ready yet.');
+    }
+  };
+
+  const closeAudioPlayer = () => {
+    setShowAudioPlayer(false);
+    setCurrentAudioUrl(null);
+    setCurrentAudioTitle('');
   };
 
   const getStatusColor = (status) => {
@@ -195,6 +320,23 @@ function MainApp() {
           </Button>
         </View>
       </LinearGradient>
+
+      {/* Server Offline Notification */}
+      {!serverOnline && (
+        <View style={styles.offlineNotification}>
+          <Text style={styles.offlineText}>
+            🚨 AI conversion service is currently down. Please try again later.
+          </Text>
+          <Button
+            onPress={checkServerHealth}
+            variant="outline"
+            size="sm"
+            style={styles.retryButton}
+          >
+            Retry Connection
+          </Button>
+        </View>
+      )}
 
       <ScrollView style={styles.content}>
         <VoiceSelector
@@ -269,13 +411,23 @@ function MainApp() {
                   </View>
 
                   {conversion.status === 'completed' && (
-                    <Button
-                      onPress={() => downloadAudio(conversion.id, conversion.title)}
-                      variant="outline"
-                      size="sm"
-                    >
-                      Download
-                    </Button>
+                    <View style={styles.actionButtons}>
+                      <Button
+                        onPress={() => openAudioPlayer(conversion.id, conversion.title)}
+                        variant="gradient"
+                        size="sm"
+                        style={styles.playButton}
+                      >
+                        ▶️ Play
+                      </Button>
+                      <Button
+                        onPress={() => downloadAudio(conversion.id, conversion.title)}
+                        variant="outline"
+                        size="sm"
+                      >
+                        Download
+                      </Button>
+                    </View>
                   )}
                 </View>
               ))
@@ -283,6 +435,17 @@ function MainApp() {
           </CardContent>
         </Card>
       </ScrollView>
+
+      {/* Audio Player Modal */}
+      {showAudioPlayer && currentAudioUrl && (
+        <View style={styles.audioPlayerOverlay}>
+          <AudioPlayer
+            audioUrl={currentAudioUrl}
+            title={currentAudioTitle}
+            onClose={closeAudioPlayer}
+          />
+        </View>
+      )}
     </View>
   );
 }
@@ -424,5 +587,44 @@ const styles = StyleSheet.create({
     color: colors.error,
     fontSize: typography.fontSizes.xs,
     marginTop: spacing.xs,
+  },
+  offlineNotification: {
+    backgroundColor: colors.error,
+    marginHorizontal: spacing.md,
+    marginTop: spacing.sm,
+    padding: spacing.md,
+    borderRadius: borderRadius.md,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  offlineText: {
+    color: colors.foreground.primary,
+    fontSize: typography.fontSizes.sm,
+    fontWeight: typography.fontWeights.medium,
+    flex: 1,
+    marginRight: spacing.md,
+  },
+  retryButton: {
+    minWidth: 80,
+  },
+  actionButtons: {
+    flexDirection: 'column',
+    gap: spacing.sm,
+    minWidth: 100,
+  },
+  playButton: {
+    minWidth: 80,
+  },
+  audioPlayerOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 1000,
   },
 });

@@ -17,7 +17,8 @@
       "Bash(timeout:*)",
       "Bash(npm install)",
       "Bash(npm install:*)",
-      "Bash(npm start)"
+      "Bash(npm start)",
+      "Bash(npx expo start:*)"
     ],
     "deny": [],
     "ask": []
