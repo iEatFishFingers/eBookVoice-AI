@@ -14,6 +14,10 @@ import { AuthProvider, useAuth } from './src/context/AuthContext';
 import AuthScreen from './src/screens/AuthScreen';
 import DashboardScreen from './src/screens/DashboardScreen';
 import VoiceSelector from './src/components/VoiceSelector';
+import Button from './src/components/ui/Button';
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from './src/components/ui/Card';
+import { colors, spacing, borderRadius, typography } from './src/theme/colors';
+import { LinearGradient } from 'expo-linear-gradient';
 
 // Environment-based API URL configuration
 const getApiBaseUrl = () => {
@@ -55,9 +59,7 @@ function MainApp() {
     );
   }
 
-  if (!isAuthenticated) {
-    return <AuthScreen />;
-  }
+  // Always authenticated (bypassed for demo)
 
   if (showDashboard) {
     return (
@@ -163,99 +165,123 @@ function MainApp() {
 
   const getStatusColor = (status) => {
     switch (status) {
-      case 'completed': return '#4CAF50';
-      case 'processing': return '#FF9800';
-      case 'failed': return '#F44336';
-      default: return '#9E9E9E';
+      case 'completed': return colors.success;
+      case 'processing': return colors.warning;
+      case 'failed': return colors.error;
+      default: return colors.foreground.disabled;
     }
   };
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
-        <View>
-          <Text style={styles.title}>eBookVoice AI</Text>
-          <Text style={styles.subtitle}>Convert eBooks to Audio</Text>
-        </View>
-        <TouchableOpacity
-          style={styles.dashboardButton}
-          onPress={() => setShowDashboard(true)}
-        >
-          <Text style={styles.dashboardButtonText}>Dashboard</Text>
-        </TouchableOpacity>
-      </View>
-
-      <VoiceSelector
-        selectedVoice={selectedVoice}
-        onVoiceSelect={setSelectedVoice}
-        userTier={user?.subscription_tier || 'free'}
-      />
-
-      <TouchableOpacity
-        style={[styles.uploadButton, loading && styles.uploadButtonDisabled]}
-        onPress={pickDocument}
-        disabled={loading}
+      {/* Header with gradient */}
+      <LinearGradient
+        colors={[colors.primary, colors.accent]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={styles.header}
       >
-        {loading ? (
-          <ActivityIndicator color="#fff" />
-        ) : (
-          <Text style={styles.uploadButtonText}>Upload eBook</Text>
-        )}
-      </TouchableOpacity>
+        <View style={styles.headerContent}>
+          <View>
+            <Text style={styles.title}>eBookVoice AI</Text>
+            <Text style={styles.subtitle}>Convert eBooks to Audio</Text>
+          </View>
+          <Button
+            onPress={() => setShowDashboard(true)}
+            variant="glass"
+            size="sm"
+          >
+            Dashboard
+          </Button>
+        </View>
+      </LinearGradient>
 
-      <ScrollView style={styles.conversionsContainer}>
-        <Text style={styles.sectionTitle}>Conversions</Text>
-        
-        {conversions.length === 0 ? (
-          <Text style={styles.emptyText}>No conversions yet. Upload an eBook to get started!</Text>
-        ) : (
-          conversions.map((conversion) => (
-            <View key={conversion.id} style={styles.conversionCard}>
-              <Text style={styles.conversionTitle}>{conversion.title}</Text>
-              <Text style={styles.conversionFile}>{conversion.fileName}</Text>
-              
-              <View style={styles.statusContainer}>
-                <View
-                  style={[
-                    styles.statusDot,
-                    { backgroundColor: getStatusColor(conversion.status) }
-                  ]}
-                />
-                <Text style={styles.statusText}>
-                  {conversion.status.charAt(0).toUpperCase() + conversion.status.slice(1)}
-                </Text>
-              </View>
+      <ScrollView style={styles.content}>
+        <VoiceSelector
+          selectedVoice={selectedVoice}
+          onVoiceSelect={setSelectedVoice}
+          userTier={user?.subscription_tier || 'free'}
+        />
 
-              {conversion.current_phase && (
-                <Text style={styles.phaseText}>{conversion.current_phase}</Text>
-              )}
+        <Card style={styles.uploadCard}>
+          <CardHeader>
+            <CardTitle>Upload Your eBook</CardTitle>
+            <CardDescription>Select a file to convert to audio</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button
+              onPress={pickDocument}
+              disabled={loading}
+              variant="gradient"
+              size="lg"
+              loading={loading}
+            >
+              {loading ? 'Processing...' : 'Choose File'}
+            </Button>
+          </CardContent>
+        </Card>
 
-              {conversion.progress > 0 && (
-                <View style={styles.progressContainer}>
-                  <View
-                    style={[
-                      styles.progressBar,
-                      { width: `${conversion.progress}%` }
-                    ]}
-                  />
+        <Card style={styles.conversionsCard}>
+          <CardHeader>
+            <CardTitle>Recent Conversions</CardTitle>
+            <CardDescription>Track your audiobook projects</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {conversions.length === 0 ? (
+              <Text style={styles.emptyText}>No conversions yet. Upload an eBook to get started!</Text>
+            ) : (
+              conversions.map((conversion) => (
+                <View key={conversion.id} style={styles.conversionItem}>
+                  <View style={styles.conversionInfo}>
+                    <Text style={styles.conversionTitle}>{conversion.title}</Text>
+                    <Text style={styles.conversionFile}>{conversion.fileName}</Text>
+                    
+                    <View style={styles.statusContainer}>
+                      <View
+                        style={[
+                          styles.statusDot,
+                          { backgroundColor: getStatusColor(conversion.status) }
+                        ]}
+                      />
+                      <Text style={styles.statusText}>
+                        {conversion.status.charAt(0).toUpperCase() + conversion.status.slice(1)}
+                      </Text>
+                    </View>
+
+                    {conversion.current_phase && (
+                      <Text style={styles.phaseText}>{conversion.current_phase}</Text>
+                    )}
+
+                    {conversion.progress > 0 && (
+                      <View style={styles.progressContainer}>
+                        <View
+                          style={[
+                            styles.progressBar,
+                            { width: `${conversion.progress}%` }
+                          ]}
+                        />
+                      </View>
+                    )}
+
+                    {conversion.error && (
+                      <Text style={styles.errorText}>Error: {conversion.error}</Text>
+                    )}
+                  </View>
+
+                  {conversion.status === 'completed' && (
+                    <Button
+                      onPress={() => downloadAudio(conversion.id, conversion.title)}
+                      variant="outline"
+                      size="sm"
+                    >
+                      Download
+                    </Button>
+                  )}
                 </View>
-              )}
-
-              {conversion.status === 'completed' && (
-                <TouchableOpacity
-                  style={styles.downloadButton}
-                  onPress={() => downloadAudio(conversion.id, conversion.title)}
-                >
-                  <Text style={styles.downloadButtonText}>Download Audio</Text>
-                </TouchableOpacity>
-              )}
-
-              {conversion.error && (
-                <Text style={styles.errorText}>Error: {conversion.error}</Text>
-              )}
-            </View>
-          ))
-        )}
+              ))
+            )}
+          </CardContent>
+        </Card>
       </ScrollView>
     </View>
   );
@@ -272,166 +298,131 @@ export default function App() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
-    paddingTop: Platform.OS === 'web' ? 20 : 50,
-    paddingHorizontal: 20,
-    maxWidth: Platform.OS === 'web' ? 800 : '100%',
-    alignSelf: Platform.OS === 'web' ? 'center' : 'stretch',
-    width: '100%',
+    backgroundColor: colors.background.primary,
+  },
+  content: {
+    flex: 1,
+    paddingHorizontal: spacing.md,
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#f5f5f5',
+    backgroundColor: colors.background.primary,
   },
   loadingText: {
-    marginTop: 10,
-    color: '#666',
-    fontSize: 16,
+    marginTop: spacing.md,
+    color: colors.foreground.muted,
+    fontSize: typography.fontSizes.md,
   },
   header: {
+    paddingTop: Platform.OS === 'web' ? spacing.lg : spacing.xxxl,
+    paddingBottom: spacing.xl,
+    paddingHorizontal: spacing.lg,
+  },
+  headerContent: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 20,
   },
   headerTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#333',
+    fontSize: typography.fontSizes.xl,
+    fontWeight: typography.fontWeights.bold,
+    color: colors.foreground.primary,
   },
   backButton: {
-    backgroundColor: '#007AFF',
-    paddingHorizontal: 15,
-    paddingVertical: 8,
-    borderRadius: 8,
+    backgroundColor: colors.background.glassmorphism,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: borderRadius.md,
+    borderWidth: 1,
+    borderColor: colors.border.glassmorphism,
   },
   backButtonText: {
-    color: '#fff',
-    fontWeight: 'bold',
-  },
-  dashboardButton: {
-    backgroundColor: '#4CAF50',
-    paddingHorizontal: 15,
-    paddingVertical: 8,
-    borderRadius: 8,
-  },
-  dashboardButtonText: {
-    color: '#fff',
-    fontWeight: 'bold',
+    color: colors.foreground.primary,
+    fontWeight: typography.fontWeights.medium,
   },
   title: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: '#333',
-    marginBottom: 5,
+    fontSize: typography.fontSizes.hero,
+    fontWeight: typography.fontWeights.bold,
+    color: colors.foreground.primary,
+    marginBottom: spacing.xs,
   },
   subtitle: {
-    fontSize: 16,
-    color: '#666',
-    marginBottom: 10,
+    fontSize: typography.fontSizes.lg,
+    color: colors.foreground.primary,
+    opacity: 0.9,
   },
-  uploadButton: {
-    backgroundColor: '#007AFF',
-    padding: 15,
-    borderRadius: 10,
-    alignItems: 'center',
-    marginBottom: 30,
+  uploadCard: {
+    marginBottom: spacing.lg,
   },
-  uploadButtonDisabled: {
-    backgroundColor: '#999',
-  },
-  uploadButtonText: {
-    color: '#fff',
-    fontSize: 18,
-    fontWeight: 'bold',
-  },
-  conversionsContainer: {
-    flex: 1,
-  },
-  sectionTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#333',
-    marginBottom: 15,
+  conversionsCard: {
+    marginBottom: spacing.lg,
   },
   emptyText: {
     textAlign: 'center',
-    color: '#999',
-    fontSize: 16,
-    marginTop: 50,
+    color: colors.foreground.muted,
+    fontSize: typography.fontSizes.md,
+    fontStyle: 'italic',
+    paddingVertical: spacing.xl,
   },
-  conversionCard: {
-    backgroundColor: '#fff',
-    padding: 15,
-    borderRadius: 10,
-    marginBottom: 15,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 3.84,
-    elevation: 5,
+  conversionItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border.default,
+  },
+  conversionInfo: {
+    flex: 1,
   },
   conversionTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#333',
-    marginBottom: 5,
+    fontSize: typography.fontSizes.md,
+    fontWeight: typography.fontWeights.medium,
+    color: colors.foreground.primary,
+    marginBottom: spacing.xs,
   },
   conversionFile: {
-    fontSize: 14,
-    color: '#666',
-    marginBottom: 10,
+    fontSize: typography.fontSizes.sm,
+    color: colors.foreground.muted,
+    marginBottom: spacing.sm,
   },
   statusContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 10,
+    marginBottom: spacing.sm,
   },
   statusDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    marginRight: 8,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    marginRight: spacing.sm,
   },
   statusText: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#333',
+    fontSize: typography.fontSizes.sm,
+    fontWeight: typography.fontWeights.medium,
+    color: colors.foreground.primary,
   },
   phaseText: {
-    fontSize: 12,
-    color: '#666',
-    marginBottom: 10,
+    fontSize: typography.fontSizes.xs,
+    color: colors.foreground.muted,
+    marginBottom: spacing.sm,
   },
   progressContainer: {
     height: 4,
-    backgroundColor: '#e0e0e0',
-    borderRadius: 2,
-    marginBottom: 10,
+    backgroundColor: colors.background.tertiary,
+    borderRadius: borderRadius.sm,
+    marginBottom: spacing.sm,
   },
   progressBar: {
     height: '100%',
-    backgroundColor: '#007AFF',
-    borderRadius: 2,
-  },
-  downloadButton: {
-    backgroundColor: '#4CAF50',
-    padding: 10,
-    borderRadius: 5,
-    alignItems: 'center',
-  },
-  downloadButtonText: {
-    color: '#fff',
-    fontWeight: 'bold',
+    backgroundColor: colors.primary,
+    borderRadius: borderRadius.sm,
   },
   errorText: {
-    color: '#F44336',
-    fontSize: 12,
-    marginTop: 5,
+    color: colors.error,
+    fontSize: typography.fontSizes.xs,
+    marginTop: spacing.xs,
   },
 });

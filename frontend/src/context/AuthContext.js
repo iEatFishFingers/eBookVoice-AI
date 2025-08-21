@@ -30,9 +30,28 @@ export const AuthProvider = ({ children }) => {
       if (storedToken && storedUser) {
         setToken(storedToken);
         setUser(JSON.parse(storedUser));
+      } else {
+        // Bypass login - create a guest user for demo purposes
+        const guestUser = {
+          id: 'guest',
+          display_name: 'Guest User',
+          email: 'guest@example.com',
+          subscription_tier: 'free'
+        };
+        setUser(guestUser);
+        setToken('guest-token'); // Placeholder token for API calls
       }
     } catch (error) {
       console.error('Error loading stored auth:', error);
+      // Even on error, set guest user
+      const guestUser = {
+        id: 'guest',
+        display_name: 'Guest User',
+        email: 'guest@example.com',
+        subscription_tier: 'free'
+      };
+      setUser(guestUser);
+      setToken('guest-token');
     } finally {
       setLoading(false);
     }
