@@ -10,7 +10,8 @@
       "Bash(mkdir:*)",
       "Bash(touch:*)",
       "Bash(docker build:*)",
-      "Bash(pip index:*)"
+      "Bash(pip index:*)",
+      "Bash(npm run build:*)"
     ],
     "deny": [],
     "ask": []

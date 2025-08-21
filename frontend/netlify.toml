@@ -1,6 +1,6 @@
 [build]
   # Build command for Expo web
-  command = "npm run build"
+  command = "npm ci && npm run build"
   # Output directory for Expo web builds
   publish = "web-build"
   
@@ -9,6 +9,8 @@
   NODE_VERSION = "18"
   # Expo CLI version
   EXPO_CLI_VERSION = "latest"
+  # Skip Husky install
+  HUSKY = "0"
 
 # Redirect rules for single-page application
 [[redirects]]
