@@ -88,7 +88,10 @@ function MainApp() {
     );
   }
 
-  // Always authenticated (bypassed for demo)
+  // For demo purposes, bypass authentication check but keep for production
+  // if (!isAuthenticated) {
+  //   return <AuthScreen />;
+  // }
 
   if (showDashboard) {
     return (

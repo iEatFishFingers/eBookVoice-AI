@@ -4,7 +4,6 @@ import {
   Text,
   View,
   TouchableOpacity,
-  Slider,
   Platform,
   Alert,
 } from 'react-native';
@@ -185,23 +184,21 @@ export default function AudioPlayer({ audioUrl, title, onClose }) {
               <Text style={styles.timeText}>
                 {formatTime(position)}
               </Text>
-              <Slider
-                style={styles.slider}
-                minimumValue={0}
-                maximumValue={1}
-                value={duration > 0 ? position / duration : 0}
-                onValueChange={(value) => {
-                  setIsDragging(true);
-                  setPosition(value * duration);
-                }}
-                onSlidingComplete={(value) => {
-                  setIsDragging(false);
-                  seekToPosition(value);
-                }}
-                minimumTrackTintColor={colors.primary}
-                maximumTrackTintColor={colors.background.tertiary}
-                thumbStyle={styles.sliderThumb}
-              />
+              <View style={styles.progressBar}>
+                <View 
+                  style={[
+                    styles.progressFill,
+                    { width: `${duration > 0 ? (position / duration) * 100 : 0}%` }
+                  ]}
+                />
+                <TouchableOpacity
+                  style={[
+                    styles.progressThumb,
+                    { left: `${duration > 0 ? (position / duration) * 100 : 0}%` }
+                  ]}
+                  onPress={() => {}}
+                />
+              </View>
               <Text style={styles.timeText}>
                 {formatTime(duration)}
               </Text>
@@ -284,15 +281,27 @@ const styles = StyleSheet.create({
     minWidth: 40,
     textAlign: 'center',
   },
-  slider: {
+  progressBar: {
     flex: 1,
-    height: 40,
+    height: 6,
+    backgroundColor: colors.background.tertiary,
+    borderRadius: 3,
     marginHorizontal: spacing.md,
+    position: 'relative',
   },
-  sliderThumb: {
+  progressFill: {
+    height: '100%',
     backgroundColor: colors.primary,
+    borderRadius: 3,
+  },
+  progressThumb: {
+    position: 'absolute',
+    top: -7,
     width: 20,
     height: 20,
+    borderRadius: 10,
+    backgroundColor: colors.primary,
+    transform: [{ translateX: -10 }],
   },
   controlsContainer: {
     flexDirection: 'row',
