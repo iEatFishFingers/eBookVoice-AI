@@ -6,23 +6,13 @@ from datetime import datetime
 from pathlib import Path
 from flask import Flask, request, jsonify, send_file
 from flask_cors import CORS
-import PyPDF2
-import pyttsx3
-from bs4 import BeautifulSoup
+from text_parser import get_text_parser
 from config import config
 from database import init_database, get_db_connection
 from auth import init_auth_manager, require_auth, optional_auth
 from voice_engine import init_voice_engine, get_voice_engine
 from dashboard_api import get_dashboard_service
 
-# Try to import ebooklib, handle gracefully if not available
-try:
-    import ebooklib
-    from ebooklib import epub
-    EPUB_SUPPORT = True
-except ImportError:
-    EPUB_SUPPORT = False
-    print("Warning: ebooklib not available. EPUB support disabled.")
 
 def create_app(config_name=None):
     """Application factory pattern."""
@@ -63,41 +53,22 @@ conversion_jobs = {}
 class EnhancedEBookConverter:
     def __init__(self):
         self.voice_engine = get_voice_engine()
+        self.text_parser = get_text_parser()
         
-    def extract_text_from_pdf(self, file_path):
-        text = ""
-        with open(file_path, 'rb') as file:
-            reader = PyPDF2.PdfReader(file)
-            for page in reader.pages:
-                text += page.extract_text() + "\n"
-        return text
+    def extract_and_clean_text(self, file_path):
+        """Extract and clean text from eBook file."""
+        return self.text_parser.extract_text_from_file(file_path)
     
-    def extract_text_from_epub(self, file_path):
-        if not EPUB_SUPPORT:
-            raise ValueError("EPUB support not available. Please install ebooklib.")
-        
-        book = epub.read_epub(file_path)
-        text = ""
-        for item in book.get_items():
-            if item.get_type() == ebooklib.ITEM_DOCUMENT:
-                soup = BeautifulSoup(item.get_content(), 'html.parser')
-                text += soup.get_text() + "\n"
-        return text
-    
-    def extract_text_from_txt(self, file_path):
-        with open(file_path, 'r', encoding='utf-8') as file:
-            return file.read()
-    
-    def text_to_speech(self, text, output_path, voice_id='basic_0', user_tier='free'):
-        """Enhanced text-to-speech with voice selection."""
+    def text_to_speech(self, text, output_path, voice_id='xtts_female_narrator', user_tier='free'):
+        """Generate high-quality audio using Coqui XTTS v2."""
         return self.voice_engine.synthesize_speech(text, voice_id, output_path, user_tier)
     
-    def get_word_count(self, text):
-        """Get approximate word count for usage tracking."""
-        return len(text.split())
+    def get_text_statistics(self, text):
+        """Get text statistics for tracking."""
+        return self.text_parser.get_text_statistics(text)
 
-def background_conversion(job_id, file_path, voice_id='basic_0', user_tier='free', user_id=None):
-    """Enhanced background conversion with voice selection and user tracking."""
+def background_conversion(job_id, file_path, voice_id='xtts_female_narrator', user_tier='free', user_id=None):
+    """Background conversion using Coqui XTTS v2 with enhanced text parsing."""
     try:
         converter = EnhancedEBookConverter()
         job = conversion_jobs[job_id]
@@ -105,30 +76,29 @@ def background_conversion(job_id, file_path, voice_id='basic_0', user_tier='free
         # Update status
         job['status'] = 'processing'
         job['progress'] = 10
-        job['current_phase'] = 'Extracting text from file'
+        job['current_phase'] = 'Extracting and cleaning text from file'
         job['updatedAt'] = datetime.now().isoformat()
         
-        # Extract text based on file type
-        file_extension = Path(file_path).suffix.lower()
-        if file_extension == '.pdf':
-            text = converter.extract_text_from_pdf(file_path)
-        elif file_extension == '.epub':
-            text = converter.extract_text_from_epub(file_path)
-        elif file_extension in ['.txt', '.text']:
-            text = converter.extract_text_from_txt(file_path)
-        else:
-            raise ValueError(f"Unsupported file type: {file_extension}")
+        # Extract and clean text using enhanced parser
+        text = converter.extract_and_clean_text(file_path)
         
-        # Get word count for tracking
-        word_count = converter.get_word_count(text)
-        job['word_count'] = word_count
+        if not text or len(text.strip()) < 50:
+            raise ValueError("No readable text found in file or text too short")
         
-        job['progress'] = 50
-        job['current_phase'] = f'Converting text to speech using {voice_id} voice'
+        # Get text statistics
+        stats = converter.get_text_statistics(text)
+        job.update({
+            'word_count': stats['words'],
+            'character_count': stats['characters'],
+            'estimated_duration_minutes': round(stats['words'] / 150)  # ~150 words per minute speech
+        })
+        
+        job['progress'] = 30
+        job['current_phase'] = f'Generating high-quality audio using {voice_id} voice'
         job['voice_used'] = voice_id
         job['updatedAt'] = datetime.now().isoformat()
         
-        # Generate audio with selected voice
+        # Generate high-quality audio with XTTS v2
         output_filename = f"{job_id}_audiobook.wav"
         output_path = os.path.join(app.config['AUDIOBOOKS_FOLDER'], output_filename)
         
@@ -136,10 +106,14 @@ def background_conversion(job_id, file_path, voice_id='basic_0', user_tier='free
         converter.text_to_speech(text, output_path, voice_id, user_tier)
         processing_time = (datetime.now() - start_time).total_seconds()
         
-        # Store conversion data in database and update usage if user is authenticated
+        # Verify audio file was created
+        if not os.path.exists(output_path):
+            raise ValueError("Audio file generation failed")
+        
+        # Store conversion data in database if user is authenticated
         if user_id:
             try:
-                # Store conversion record
+                file_extension = Path(file_path).suffix.lower()
                 conn = get_db_connection(app.config['DATABASE_PATH'])
                 cursor = conn.cursor()
                 cursor.execute('''
@@ -148,25 +122,28 @@ def background_conversion(job_id, file_path, voice_id='basic_0', user_tier='free
                      word_count, voice_used, processing_time, status)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ''', (user_id, job_id, job.get('fileName', ''), file_extension[1:], 
-                      job.get('file_size', 0), word_count, voice_id, int(processing_time), 'completed'))
+                      job.get('file_size', 0), job['word_count'], voice_id, int(processing_time), 'completed'))
                 conn.commit()
                 conn.close()
                 
                 # Update user usage tracking
                 dashboard_service = get_dashboard_service()
-                dashboard_service.update_user_usage(user_id, word_count)
+                dashboard_service.update_user_usage(user_id, job['word_count'])
                 
-                logger.info(f"Conversion stored and usage updated for user {user_id}")
+                app.logger.info(f"Conversion stored and usage updated for user {user_id}")
             except Exception as db_error:
-                logger.warning(f"Could not store conversion in database: {db_error}")
+                app.logger.warning(f"Could not store conversion in database: {db_error}")
         
         # Complete conversion
         job['status'] = 'completed'
         job['progress'] = 100
-        job['current_phase'] = 'Conversion completed'
+        job['current_phase'] = 'Audio generation completed successfully'
         job['audioFile'] = output_filename
+        job['download_url'] = f'/download/{job_id}'
         job['processing_time'] = int(processing_time)
         job['updatedAt'] = datetime.now().isoformat()
+        
+        app.logger.info(f"Conversion completed successfully for job {job_id} in {processing_time:.1f}s")
         
     except Exception as e:
         job['status'] = 'failed'
@@ -431,8 +408,8 @@ def upload_and_convert():
         if uploaded_file.filename == '':
             return jsonify({'success': False, 'error': 'No file selected'}), 400
         
-        # Get voice selection from form data
-        voice_id = request.form.get('voice_id', 'basic_0')
+        # Get voice selection from form data (default to XTTS female narrator)
+        voice_id = request.form.get('voice_id', 'xtts_female_narrator')
         
         # Get user info if authenticated
         user_id = None
@@ -474,20 +451,12 @@ def upload_and_convert():
         # Validate file type
         original_filename = uploaded_file.filename
         file_extension = Path(original_filename).suffix.lower()
-        supported_extensions = {'.pdf', '.txt', '.text'}
-        
-        # Add EPUB support only if ebooklib is available
-        if EPUB_SUPPORT:
-            supported_extensions.add('.epub')
+        supported_extensions = {'.pdf', '.epub', '.txt', '.text'}
         
         if file_extension not in supported_extensions:
-            error_msg = f'Unsupported file type: {file_extension}'
-            if not EPUB_SUPPORT and file_extension == '.epub':
-                error_msg += ' (EPUB support not available in this deployment)'
-            
             return jsonify({
                 'success': False,
-                'error': error_msg,
+                'error': f'Unsupported file type: {file_extension}. Supported types: PDF, EPUB, TXT',
                 'supported_types': list(supported_extensions)
             }), 400
         
@@ -532,9 +501,9 @@ def upload_and_convert():
         
         return jsonify({
             'success': True, 
+            'job_id': job_id,
             'data': conversion_jobs[job_id],
-            'voice_used': voice_name,
-            'user_tier': user_tier
+            'download_url': f'/download/{job_id}'
         })
         
     except Exception as e:

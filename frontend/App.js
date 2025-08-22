@@ -20,23 +20,15 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from './src
 import { colors, spacing, borderRadius, typography } from './src/theme/colors';
 import { LinearGradient } from 'expo-linear-gradient';
 
-// Environment-based API URL configuration
-const getApiBaseUrl = () => {
-  // For Expo development - you can still use localhost if running backend locally
-  if (__DEV__ && Platform.OS !== 'web') {
-    return 'http://localhost:5001';
-  }
-  
-  // Always use Render URL for web and production
-  return 'https://ebookvoice-backend.onrender.com';
-};
-
-const API_BASE_URL = getApiBaseUrl();
+// API URL configuration
+const API_BASE_URL = 'https://ebookvoice-backend.onrender.com';
 
 function MainApp() {
   const [conversions, setConversions] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [selectedVoice, setSelectedVoice] = useState('basic_0');
+  const [selectedVoice, setSelectedVoice] = useState('xtts_female_narrator');
+  const [uploadProgress, setUploadProgress] = useState(null);
+  const [activeConversions, setActiveConversions] = useState(new Set());
   const [showDashboard, setShowDashboard] = useState(false);
   const [currentScreen, setCurrentScreen] = useState('landing'); // 'landing', 'app', 'dashboard'
   const { isAuthenticated, loading: authLoading, user, getAuthHeaders } = useAuth();
@@ -122,6 +114,7 @@ function MainApp() {
 
   const uploadFile = async (file) => {
     setLoading(true);
+    setUploadProgress('Uploading file...');
     
     try {
       const formData = new FormData();
@@ -144,28 +137,95 @@ function MainApp() {
       const data = await response.json();
       
       if (data.success) {
-        Alert.alert('Success', 'File uploaded successfully! Conversion started.');
+        const { job_id } = data;
+        setActiveConversions(prev => new Set([...prev, job_id]));
+        
+        setUploadProgress('Upload successful! Starting conversion...');
+        
+        // Start polling for progress
+        startPollingConversion(job_id);
+        
+        Alert.alert('Success', `File uploaded! Converting "${file.name}" to high-quality audio.`);
         fetchConversions();
       } else {
         Alert.alert('Error', data.error || 'Upload failed');
       }
     } catch (error) {
-      Alert.alert('Error', 'Failed to upload file');
+      console.error('Upload error:', error);
+      Alert.alert('Error', 'Failed to upload file. Please check your connection.');
     } finally {
       setLoading(false);
+      setTimeout(() => setUploadProgress(null), 3000);
     }
   };
 
+  const startPollingConversion = (jobId) => {
+    const pollInterval = setInterval(async () => {
+      try {
+        const response = await fetch(`${API_BASE_URL}/conversions/${jobId}`);
+        const data = await response.json();
+        
+        if (data.success) {
+          const conversion = data.data;
+          
+          // Update conversions list
+          setConversions(prev => 
+            prev.map(c => c.id === jobId ? conversion : c)
+          );
+          
+          // Stop polling if completed or failed
+          if (conversion.status === 'completed' || conversion.status === 'failed') {
+            clearInterval(pollInterval);
+            setActiveConversions(prev => {
+              const newSet = new Set(prev);
+              newSet.delete(jobId);
+              return newSet;
+            });
+            
+            if (conversion.status === 'completed') {
+              Alert.alert('Success', `Audio conversion completed for "${conversion.title}"!`);
+            } else if (conversion.status === 'failed') {
+              Alert.alert('Error', `Conversion failed: ${conversion.error || 'Unknown error'}`);
+            }
+          }
+        }
+      } catch (error) {
+        console.error('Polling error:', error);
+      }
+    }, 2000); // Poll every 2 seconds
+    
+    // Clear interval after 10 minutes to prevent infinite polling
+    setTimeout(() => clearInterval(pollInterval), 10 * 60 * 1000);
+  };
+  
   const downloadAudio = async (jobId, title) => {
     try {
       const url = `${API_BASE_URL}/download/${jobId}`;
       
       if (Platform.OS === 'web') {
         // For web, open download link in new tab
-        window.open(url, '_blank');
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `${title}_audiobook.wav`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
       } else {
-        // For mobile, show URL in alert
-        Alert.alert('Download', `Audio file ready for: ${title}\nURL: ${url}`);
+        // For mobile, show URL in alert with copy option
+        Alert.alert(
+          'Download Ready', 
+          `High-quality audiobook ready for: "${title}"\n\nTap OK to copy download link.`,
+          [
+            { text: 'Cancel', style: 'cancel' },
+            { 
+              text: 'Copy Link', 
+              onPress: () => {
+                // In a real app, you'd use Clipboard API
+                Alert.alert('Link Copied', url);
+              }
+            }
+          ]
+        );
       }
     } catch (error) {
       Alert.alert('Error', 'Failed to download audio file');
@@ -237,8 +297,14 @@ function MainApp() {
               size="lg"
               loading={loading}
             >
-              {loading ? 'Processing...' : 'Choose File'}
+              {loading ? 'Converting to Audio...' : 'Convert to Audio'}
             </Button>
+            {uploadProgress && (
+              <Text style={styles.uploadProgressText}>{uploadProgress}</Text>
+            )}
+            <Text style={styles.supportedFormats}>
+              Supports PDF, EPUB, and TXT files
+            </Text>
           </CardContent>
         </Card>
 
@@ -449,5 +515,18 @@ const styles = StyleSheet.create({
     color: colors.error,
     fontSize: typography.fontSizes.xs,
     marginTop: spacing.xs,
+  },
+  uploadProgressText: {
+    color: colors.foreground.muted,
+    fontSize: typography.fontSizes.sm,
+    marginTop: spacing.sm,
+    textAlign: 'center',
+    fontStyle: 'italic',
+  },
+  supportedFormats: {
+    color: colors.foreground.disabled,
+    fontSize: typography.fontSizes.xs,
+    marginTop: spacing.xs,
+    textAlign: 'center',
   },
 });

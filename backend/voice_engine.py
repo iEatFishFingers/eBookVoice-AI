@@ -1,308 +1,242 @@
-"""Enhanced TTS engine with multiple voice options."""
+"""Coqui XTTS v2 TTS engine for high-quality audiobook generation."""
 import os
 import tempfile
 import logging
-import json
+import re
 from pathlib import Path
 from typing import Dict, List, Optional
-import pyttsx3
 
 logger = logging.getLogger(__name__)
 
 class VoiceEngine:
-    """Enhanced TTS service supporting multiple voice engines and tiers."""
+    """Coqui XTTS v2 TTS service for audiobook conversion."""
     
     def __init__(self):
-        self.engines = {}
-        self.voice_catalog = {}
-        self.initialize_engines()
+        self.model = None
+        self.device = "cpu"  # Use CPU for compatibility
+        self.voices = self._get_default_voices()
+        self.initialize_engine()
         
-    def initialize_engines(self):
-        """Initialize all available TTS engines."""
-        # Always initialize basic pyttsx3 engine
-        self._init_basic_engine()
-        
-        # Try to initialize enhanced engines
-        self._init_coqui_engine()
-        
-        # Build voice catalog
-        self._build_voice_catalog()
-        
-        logger.info(f"Initialized TTS engines: {list(self.engines.keys())}")
-    
-    def _init_basic_engine(self):
-        """Initialize pyttsx3 basic engine."""
+    def initialize_engine(self):
+        """Initialize Coqui XTTS v2 model."""
         try:
-            engine = pyttsx3.init()
-            
-            # Configure for better audiobook quality
-            engine.setProperty('rate', 175)  # Slightly slower for audiobooks
-            engine.setProperty('volume', 0.9)
-            
-            # Try to find the best available voice
-            voices = engine.getProperty('voices')
-            if voices:
-                # Prefer female voices for audiobooks (generally more pleasant)
-                female_voices = [v for v in voices if 'female' in v.name.lower() or 'zira' in v.name.lower()]
-                if female_voices:
-                    engine.setProperty('voice', female_voices[0].id)
-                    logger.info(f"Selected voice: {female_voices[0].name}")
-            
-            self.engines['basic'] = engine
-            logger.info("Basic pyttsx3 engine initialized")
-            
-        except Exception as e:
-            logger.error(f"Failed to initialize basic TTS engine: {e}")
-            raise
-    
-    def _init_coqui_engine(self):
-        """Initialize Coqui TTS engine if available."""
-        try:
-            # Try to import TTS
             from TTS.api import TTS
             import torch
             
-            # Use CPU for compatibility (can be enhanced for GPU later)
-            device = "cpu"
+            # Use GPU if available, otherwise CPU
+            self.device = "cuda" if torch.cuda.is_available() else "cpu"
+            logger.info(f"Using device: {self.device}")
             
-            # Initialize XTTS v2 model (professional quality)
-            model = TTS("tts_models/multilingual/multi-dataset/xtts_v2").to(device)
+            # Initialize XTTS v2 model
+            self.model = TTS("tts_models/multilingual/multi-dataset/xtts_v2").to(self.device)
+            logger.info("Coqui XTTS v2 engine initialized successfully")
             
-            self.engines['coqui'] = {
-                'model': model,
-                'device': device
-            }
-            
-            logger.info("Coqui XTTS engine initialized successfully")
-            
-        except ImportError:
-            logger.info("Coqui TTS not available - install with: pip install TTS torch torchaudio")
+        except ImportError as e:
+            logger.error("Coqui TTS not available. Install with: pip install TTS torch torchaudio")
+            raise ImportError("Coqui TTS is required but not installed") from e
         except Exception as e:
-            logger.warning(f"Could not initialize Coqui TTS: {e}")
+            logger.error(f"Failed to initialize Coqui XTTS: {e}")
+            raise
     
-    def _build_voice_catalog(self):
-        """Build catalog of available voices per subscription tier."""
-        
-        # Basic voices (free tier) - always available
-        basic_voices = []
-        if 'basic' in self.engines:
-            engine = self.engines['basic']
-            voices = engine.getProperty('voices')
-            if voices:
-                for i, voice in enumerate(voices[:3]):  # Limit to 3 for free tier
-                    basic_voices.append({
-                        'id': f'basic_{i}',
-                        'name': voice.name,
-                        'engine': 'basic',
-                        'tier_required': 'free',
-                        'gender': self._detect_gender(voice.name),
-                        'language': 'en',
-                        'description': f'System voice: {voice.name}',
-                        'sample_rate': '22050',
-                        'quality': 'standard'
-                    })
-        
-        # Professional voices (requires professional+ tier)
-        premium_voices = []
-        if 'coqui' in self.engines:
-            coqui_voices = [
-                {
-                    'id': 'coqui_female_narrator',
-                    'name': 'Professional Female Narrator',
-                    'engine': 'coqui',
-                    'tier_required': 'professional',
-                    'gender': 'female',
-                    'language': 'en',
-                    'description': 'High-quality AI narrator, perfect for audiobooks',
-                    'sample_rate': '24000',
-                    'quality': 'premium'
-                },
-                {
-                    'id': 'coqui_male_narrator',
-                    'name': 'Professional Male Narrator', 
-                    'engine': 'coqui',
-                    'tier_required': 'professional',
-                    'gender': 'male',
-                    'language': 'en',
-                    'description': 'Warm, authoritative voice ideal for storytelling',
-                    'sample_rate': '24000',
-                    'quality': 'premium'
-                },
-                {
-                    'id': 'coqui_warm_female',
-                    'name': 'Warm Female Voice',
-                    'engine': 'coqui', 
-                    'tier_required': 'professional',
-                    'gender': 'female',
-                    'language': 'en',
-                    'description': 'Gentle, conversational tone',
-                    'sample_rate': '24000',
-                    'quality': 'premium'
-                },
-                {
-                    'id': 'coqui_storyteller_male',
-                    'name': 'Male Storyteller',
-                    'engine': 'coqui',
-                    'tier_required': 'professional', 
-                    'gender': 'male',
-                    'language': 'en',
-                    'description': 'Dynamic voice perfect for fiction and narratives',
-                    'sample_rate': '24000',
-                    'quality': 'premium'
-                }
-            ]
-            premium_voices.extend(coqui_voices)
-        
-        # Build complete catalog
-        self.voice_catalog = {
-            'free': basic_voices,
-            'professional': basic_voices + premium_voices,
-            'enterprise': basic_voices + premium_voices  # Enterprise gets same voices + API access
-        }
-        
-        logger.info(f"Voice catalog built - Free: {len(basic_voices)}, Premium: {len(premium_voices)}")
-    
-    def _detect_gender(self, voice_name):
-        """Detect gender from voice name."""
-        female_indicators = ['female', 'zira', 'hazel', 'susan', 'anna', 'emma']
-        male_indicators = ['male', 'david', 'mark', 'james', 'ryan']
-        
-        name_lower = voice_name.lower()
-        
-        for indicator in female_indicators:
-            if indicator in name_lower:
-                return 'female'
-        
-        for indicator in male_indicators:
-            if indicator in name_lower:
-                return 'male'
-        
-        return 'neutral'
+    def _get_default_voices(self):
+        """Get available XTTS v2 voices."""
+        return [
+            {
+                'id': 'xtts_female_narrator',
+                'name': 'Female Narrator',
+                'speaker': 'Claribel Dervla',
+                'gender': 'female',
+                'description': 'Clear, professional female voice perfect for audiobooks',
+                'quality': 'premium'
+            },
+            {
+                'id': 'xtts_male_narrator',
+                'name': 'Male Narrator', 
+                'speaker': 'Abrahan Mack',
+                'gender': 'male',
+                'description': 'Warm, authoritative male voice ideal for storytelling',
+                'quality': 'premium'
+            },
+            {
+                'id': 'xtts_warm_female',
+                'name': 'Warm Female Voice',
+                'speaker': 'Gitta Nikolina',
+                'gender': 'female',
+                'description': 'Gentle, conversational female tone',
+                'quality': 'premium'
+            },
+            {
+                'id': 'xtts_storyteller',
+                'name': 'Storyteller',
+                'speaker': 'Daisy Studious',
+                'gender': 'female',
+                'description': 'Dynamic voice perfect for fiction and narratives',
+                'quality': 'premium'
+            }
+        ]
     
     def get_available_voices(self, user_tier='free'):
-        """Get voices available for a specific subscription tier."""
-        return self.voice_catalog.get(user_tier, self.voice_catalog['free'])
+        """Get all available voices (simplified - no tier restrictions)."""
+        return self.voices
     
-    def synthesize_speech(self, text, voice_id='basic_0', output_path=None, user_tier='free'):
-        """Synthesize speech using the specified voice."""
+    def synthesize_speech(self, text, voice_id='xtts_female_narrator', output_path=None, user_tier='free'):
+        """Synthesize speech using Coqui XTTS v2."""
         if not output_path:
             output_path = tempfile.mktemp(suffix='.wav')
         
         # Get voice info
-        available_voices = self.get_available_voices(user_tier)
-        voice_info = next((v for v in available_voices if v['id'] == voice_id), None)
-        
+        voice_info = self.get_voice_info(voice_id)
         if not voice_info:
-            # Fallback to first available voice
-            voice_info = available_voices[0] if available_voices else None
-            if not voice_info:
-                raise ValueError("No voices available")
-            voice_id = voice_info['id']
-            logger.warning(f"Voice not found, using fallback: {voice_id}")
+            # Fallback to default voice
+            voice_info = self.voices[0]
+            logger.warning(f"Voice {voice_id} not found, using fallback: {voice_info['id']}")
         
-        # Check if user has access to this voice
-        if voice_info['tier_required'] == 'professional' and user_tier == 'free':
-            # Downgrade to free voice
-            free_voices = self.voice_catalog['free']
-            if free_voices:
-                voice_info = free_voices[0]
-                voice_id = voice_info['id']
-                logger.info(f"Downgraded to free voice: {voice_id}")
-            else:
-                raise ValueError("No free voices available")
-        
-        # Synthesize based on engine
-        engine_type = voice_info['engine']
-        
-        if engine_type == 'basic':
-            return self._synthesize_basic(text, voice_id, output_path)
-        elif engine_type == 'coqui':
-            return self._synthesize_coqui(text, voice_id, output_path)
-        else:
-            raise ValueError(f"Unknown engine type: {engine_type}")
-    
-    def _synthesize_basic(self, text, voice_id, output_path):
-        """Synthesize using pyttsx3."""
         try:
-            engine = self.engines['basic']
+            # Get speaker name
+            speaker = voice_info['speaker']
             
-            # Set specific voice if requested
-            if voice_id.startswith('basic_'):
-                voice_index = int(voice_id.split('_')[1])
-                voices = engine.getProperty('voices')
-                if voices and voice_index < len(voices):
-                    engine.setProperty('voice', voices[voice_index].id)
+            # Clean text for better TTS results
+            cleaned_text = self._clean_text_for_tts(text)
             
-            # Generate speech
-            engine.save_to_file(text, output_path)
-            engine.runAndWait()
+            # Split long text into chunks if needed
+            chunks = self._split_text_into_chunks(cleaned_text)
             
-            logger.info(f"Basic TTS synthesis completed: {output_path}")
+            if len(chunks) == 1:
+                # Single chunk - direct synthesis
+                self.model.tts_to_file(
+                    text=chunks[0],
+                    speaker=speaker,
+                    file_path=output_path,
+                    language='en'
+                )
+            else:
+                # Multiple chunks - synthesize and concatenate
+                self._synthesize_chunks(chunks, speaker, output_path)
+            
+            logger.info(f"XTTS synthesis completed: {output_path}")
             return output_path
             
         except Exception as e:
-            logger.error(f"Basic TTS synthesis failed: {e}")
+            logger.error(f"XTTS synthesis failed: {e}")
             raise
     
-    def _synthesize_coqui(self, text, voice_id, output_path):
-        """Synthesize using Coqui XTTS."""
-        try:
-            coqui_engine = self.engines['coqui']
-            model = coqui_engine['model']
-            
-            # Map voice IDs to speaker configurations
-            speaker_mapping = {
-                'coqui_female_narrator': 'Claribel Dervla',
-                'coqui_male_narrator': 'Daisy Studious', 
-                'coqui_warm_female': 'Gitta Nikolina',
-                'coqui_storyteller_male': 'Abrahan Mack'
-            }
-            
-            speaker = speaker_mapping.get(voice_id, 'Claribel Dervla')
-            
-            # Generate speech with XTTS
-            model.tts_to_file(
-                text=text,
-                speaker=speaker,
-                file_path=output_path,
-                language='en'
-            )
-            
-            logger.info(f"Coqui XTTS synthesis completed: {output_path}")
-            return output_path
-            
-        except Exception as e:
-            logger.error(f"Coqui TTS synthesis failed: {e}")
-            # Fallback to basic engine
-            logger.info("Falling back to basic TTS engine")
-            return self._synthesize_basic(text, 'basic_0', output_path)
+    def _clean_text_for_tts(self, text):
+        """Clean text to improve TTS quality."""
+        # Remove excessive whitespace
+        text = re.sub(r'\s+', ' ', text.strip())
+        
+        # Fix common abbreviations
+        text = re.sub(r'\bDr\.', 'Doctor', text)
+        text = re.sub(r'\bMr\.', 'Mister', text)
+        text = re.sub(r'\bMrs\.', 'Missus', text)
+        text = re.sub(r'\bMs\.', 'Miss', text)
+        text = re.sub(r'\bProf\.', 'Professor', text)
+        
+        # Handle numbers and dates better
+        text = re.sub(r'\b(\d+)st\b', r'\1 first', text)
+        text = re.sub(r'\b(\d+)nd\b', r'\1 second', text)
+        text = re.sub(r'\b(\d+)rd\b', r'\1 third', text)
+        text = re.sub(r'\b(\d+)th\b', r'\1 th', text)
+        
+        # Remove or replace problematic characters
+        text = re.sub(r'[^\w\s.,!?;:()"\'-]', ' ', text)
+        
+        return text
     
-    def get_voice_info(self, voice_id, user_tier='free'):
-        """Get detailed information about a specific voice."""
-        available_voices = self.get_available_voices(user_tier)
-        return next((v for v in available_voices if v['id'] == voice_id), None)
+    def _split_text_into_chunks(self, text, max_chunk_size=500):
+        """Split text into manageable chunks for TTS."""
+        # Split by sentences first
+        sentences = re.split(r'[.!?]+\s*', text)
+        
+        chunks = []
+        current_chunk = ""
+        
+        for sentence in sentences:
+            if not sentence.strip():
+                continue
+                
+            # If adding this sentence would exceed max size, start a new chunk
+            if len(current_chunk) + len(sentence) > max_chunk_size and current_chunk:
+                chunks.append(current_chunk.strip())
+                current_chunk = sentence
+            else:
+                current_chunk += (" " + sentence if current_chunk else sentence)
+        
+        # Add the last chunk
+        if current_chunk.strip():
+            chunks.append(current_chunk.strip())
+        
+        return chunks if chunks else [text]  # Fallback to original text
+    
+    def _synthesize_chunks(self, chunks, speaker, output_path):
+        """Synthesize multiple chunks and concatenate them."""
+        import tempfile
+        import wave
+        
+        temp_files = []
+        
+        try:
+            # Generate audio for each chunk
+            for i, chunk in enumerate(chunks):
+                temp_file = tempfile.mktemp(suffix=f'_chunk_{i}.wav')
+                temp_files.append(temp_file)
+                
+                self.model.tts_to_file(
+                    text=chunk,
+                    speaker=speaker,
+                    file_path=temp_file,
+                    language='en'
+                )
+            
+            # Concatenate all chunks
+            self._concatenate_wav_files(temp_files, output_path)
+            
+        finally:
+            # Clean up temporary files
+            for temp_file in temp_files:
+                try:
+                    os.remove(temp_file)
+                except:
+                    pass
+    
+    def _concatenate_wav_files(self, input_files, output_file):
+        """Concatenate multiple WAV files into one."""
+        import wave
+        
+        with wave.open(output_file, 'wb') as output_wav:
+            first_file = True
+            
+            for input_file in input_files:
+                if not os.path.exists(input_file):
+                    continue
+                    
+                with wave.open(input_file, 'rb') as input_wav:
+                    if first_file:
+                        # Set parameters from first file
+                        output_wav.setparams(input_wav.getparams())
+                        first_file = False
+                    
+                    # Copy audio data
+                    frames = input_wav.readframes(input_wav.getnframes())
+                    output_wav.writeframes(frames)
+    
+    def get_voice_info(self, voice_id):
+        """Get information about a specific voice."""
+        return next((v for v in self.voices if v['id'] == voice_id), None)
     
     def validate_voice_access(self, voice_id, user_tier):
-        """Check if user has access to specified voice."""
-        voice_info = self.get_voice_info(voice_id, user_tier)
-        if not voice_info:
-            return False
-            
-        tier_hierarchy = {'free': 0, 'professional': 1, 'enterprise': 2}
-        required_level = tier_hierarchy.get(voice_info['tier_required'], 999)
-        user_level = tier_hierarchy.get(user_tier, 0)
-        
-        return user_level >= required_level
+        """Check if voice is available (simplified - all voices available)."""
+        return self.get_voice_info(voice_id) is not None
     
     def get_engine_status(self):
-        """Get status of all TTS engines."""
-        status = {}
-        for engine_name in self.engines:
-            status[engine_name] = {
-                'available': True,
-                'voice_count': len([v for v in self.voice_catalog.get('enterprise', []) if v['engine'] == engine_name])
+        """Get engine status."""
+        return {
+            'xtts_v2': {
+                'available': self.model is not None,
+                'device': self.device,
+                'voice_count': len(self.voices)
             }
-        return status
+        }
 
 # Global voice engine instance
 voice_engine = None

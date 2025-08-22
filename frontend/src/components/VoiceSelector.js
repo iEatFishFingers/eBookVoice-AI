@@ -18,37 +18,47 @@ export default function VoiceSelector({ selectedVoice, onVoiceSelect, userTier =
   const [loading, setLoading] = useState(true);
   const { getAuthHeaders } = useAuth();
 
-  const API_BASE_URL = process.env.REACT_APP_API_URL || 'https://your-app.onrender.com';
+  const API_BASE_URL = 'https://ebookvoice-backend.onrender.com';
   
-  // Mock voices for demo purposes
+  // XTTS v2 voices for fallback
   const mockVoices = [
     {
-      id: 'basic_0',
-      name: 'Sarah',
-      description: 'Clear and natural female voice',
-      quality: 'Standard',
+      id: 'xtts_female_narrator',
+      name: 'Female Narrator',
+      description: 'Clear, professional female voice perfect for audiobooks',
+      quality: 'Premium',
       tier_required: 'free',
-      engine: 'Basic TTS',
+      engine: 'Coqui XTTS v2',
       gender: 'Female',
       language: 'English'
     },
     {
-      id: 'premium_1',
-      name: 'David',
-      description: 'Professional male narrator voice',
-      quality: 'High',
-      tier_required: 'professional',
-      engine: 'Premium TTS',
+      id: 'xtts_male_narrator',
+      name: 'Male Narrator',
+      description: 'Warm, authoritative male voice ideal for storytelling',
+      quality: 'Premium',
+      tier_required: 'free',
+      engine: 'Coqui XTTS v2',
       gender: 'Male',
       language: 'English'
     },
     {
-      id: 'premium_2',
-      name: 'Emma',
-      description: 'Expressive female storytelling voice',
+      id: 'xtts_warm_female',
+      name: 'Warm Female Voice',
+      description: 'Gentle, conversational female tone',
       quality: 'Premium',
-      tier_required: 'professional',
-      engine: 'Premium TTS',
+      tier_required: 'free',
+      engine: 'Coqui XTTS v2',
+      gender: 'Female',
+      language: 'English'
+    },
+    {
+      id: 'xtts_storyteller',
+      name: 'Storyteller',
+      description: 'Dynamic voice perfect for fiction and narratives',
+      quality: 'Premium',
+      tier_required: 'free',
+      engine: 'Coqui XTTS v2',
       gender: 'Female',
       language: 'English'
     }
@@ -70,32 +80,27 @@ export default function VoiceSelector({ selectedVoice, onVoiceSelect, userTier =
       const data = await response.json();
 
       if (response.ok && data.success) {
-        setVoices(data.data || []);
+        setVoices(data.voices || mockVoices);
         
         // Auto-select first available voice if none selected
-        if (!selectedVoice && data.data && data.data.length > 0) {
-          const availableVoices = data.data.filter(voice => 
-            !voice.tier_required || voice.tier_required === userTier ||
-            (userTier === 'professional' && voice.tier_required === 'free') ||
-            (userTier === 'enterprise' && ['free', 'professional'].includes(voice.tier_required))
-          );
-          
-          if (availableVoices.length > 0) {
-            onVoiceSelect(availableVoices[0].id);
+        if (!selectedVoice) {
+          const voiceList = data.voices || mockVoices;
+          if (voiceList.length > 0) {
+            onVoiceSelect(voiceList[0].id);
           }
         }
       } else {
-        console.error('Failed to fetch voices, using mock data:', data.error);
+        console.log('Using built-in XTTS v2 voices');
         setVoices(mockVoices);
         if (!selectedVoice) {
-          onVoiceSelect('basic_0');
+          onVoiceSelect('xtts_female_narrator');
         }
       }
     } catch (error) {
-      console.error('Voice fetch error, using mock data:', error);
+      console.log('Using built-in XTTS v2 voices');
       setVoices(mockVoices);
       if (!selectedVoice) {
-        onVoiceSelect('basic_0');
+        onVoiceSelect('xtts_female_narrator');
       }
     } finally {
       setLoading(false);
@@ -152,8 +157,8 @@ export default function VoiceSelector({ selectedVoice, onVoiceSelect, userTier =
   return (
     <Card style={styles.container}>
       <CardHeader>
-        <CardTitle>Select Voice</CardTitle>
-        <CardDescription>Choose your preferred narrator voice</CardDescription>
+        <CardTitle>Select AI Voice</CardTitle>
+        <CardDescription>Choose from high-quality Coqui XTTS v2 voices</CardDescription>
       </CardHeader>
       <CardContent>
         <ScrollView style={styles.voiceList} showsVerticalScrollIndicator={false}>
