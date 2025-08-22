@@ -56,7 +56,7 @@ export default function DashboardScreen() {
     }
   };
 
-  const API_BASE_URL = process.env.REACT_APP_API_URL || 'https://your-app.onrender.com';
+  const API_BASE_URL = 'https://ebookvoice-backend.onrender.com';
 
   useEffect(() => {
     fetchDashboardData();

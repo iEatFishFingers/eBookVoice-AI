@@ -16,7 +16,7 @@ export const AuthProvider = ({ children }) => {
   const [token, setToken] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  const API_BASE_URL = process.env.REACT_APP_API_URL || 'https://your-app.onrender.com';
+  const API_BASE_URL = 'https://ebookvoice-backend.onrender.com';
 
   useEffect(() => {
     loadStoredAuth();
