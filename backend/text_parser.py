@@ -1,29 +1,47 @@
-"""Enhanced text parsing for eBook files with smart content detection."""
+"""Lightweight text parsing for eBook files using built-in Python libraries."""
 import re
 import logging
+import zipfile
+import xml.etree.ElementTree as ET
+from html.parser import HTMLParser
 from pathlib import Path
 from typing import Optional, Tuple
 import PyPDF2
-from bs4 import BeautifulSoup
 
-# Try to import ebooklib
-try:
-    import ebooklib
-    from ebooklib import epub
-    EPUB_SUPPORT = True
-except ImportError:
-    EPUB_SUPPORT = False
-    
 logger = logging.getLogger(__name__)
 
+class HTMLTextExtractor(HTMLParser):
+    """Simple HTML text extractor using built-in html.parser."""
+    
+    def __init__(self):
+        super().__init__()
+        self.text_parts = []
+        self.skip_tags = {'style', 'script', 'meta', 'link', 'head', 'title'}
+        self.current_tag = None
+        
+    def handle_starttag(self, tag, attrs):
+        self.current_tag = tag.lower()
+        
+    def handle_endtag(self, tag):
+        self.current_tag = None
+        
+    def handle_data(self, data):
+        if self.current_tag not in self.skip_tags:
+            text = data.strip()
+            if text:
+                self.text_parts.append(text)
+    
+    def get_text(self):
+        return ' '.join(self.text_parts)
+
 class TextParser:
-    """Enhanced text parser for eBooks with smart content extraction."""
+    """Lightweight text parser using built-in Python libraries."""
     
     def __init__(self):
         self.chapter_patterns = [
             r'^chapter\s+\d+',
             r'^\d+\.\s',
-            r'^part\s+\d+',
+            r'^part\s+\d+', 
             r'^section\s+\d+',
             r'chapter one',
             r'chapter 1',
@@ -60,7 +78,7 @@ class TextParser:
             raise ValueError(f"Unsupported file type: {file_extension}")
     
     def _extract_from_pdf(self, file_path: str) -> str:
-        """Extract text from PDF with smart content detection."""
+        """Extract text from PDF using PyPDF2."""
         try:
             text = ""
             with open(file_path, 'rb') as file:
@@ -82,41 +100,100 @@ class TextParser:
             raise
     
     def _extract_from_epub(self, file_path: str) -> str:
-        """Extract text from EPUB with chapter detection."""
-        if not EPUB_SUPPORT:
-            raise ValueError("EPUB support not available. Please install ebooklib.")
-        
+        """Extract text from EPUB using built-in zipfile and xml.etree."""
         try:
-            book = epub.read_epub(file_path)
             text_parts = []
             
-            # Get all document items
-            items = list(book.get_items_of_type(ebooklib.ITEM_DOCUMENT))
-            
-            for item in items:
-                try:
-                    content = item.get_content().decode('utf-8')
-                    soup = BeautifulSoup(content, 'html.parser')
-                    
-                    # Remove style and script tags
-                    for tag in soup(["style", "script", "meta", "link"]):
-                        tag.decompose()
-                    
-                    # Extract text
-                    item_text = soup.get_text()
-                    if item_text and len(item_text.strip()) > 50:  # Skip very short sections
-                        text_parts.append(item_text)
+            with zipfile.ZipFile(file_path, 'r') as epub_zip:
+                # Find content files
+                content_files = []
+                
+                # First, try to find the content.opf file to get the reading order
+                opf_files = [f for f in epub_zip.namelist() if f.endswith('.opf')]
+                
+                if opf_files:
+                    # Parse OPF file to get content order
+                    opf_content = epub_zip.read(opf_files[0]).decode('utf-8', errors='ignore')
+                    content_files = self._parse_opf_for_content_files(opf_content, epub_zip)
+                
+                if not content_files:
+                    # Fallback: find all HTML/XHTML files
+                    content_files = [f for f in epub_zip.namelist() 
+                                   if f.endswith(('.html', '.xhtml', '.htm')) and not f.startswith('META-INF/')]
+                
+                # Extract text from content files
+                for file_name in content_files:
+                    try:
+                        content = epub_zip.read(file_name).decode('utf-8', errors='ignore')
+                        text = self._extract_html_text(content)
                         
-                except Exception as e:
-                    logger.warning(f"Failed to process EPUB item {item.file_name}: {e}")
-                    continue
+                        if text and len(text.strip()) > 50:  # Skip very short sections
+                            text_parts.append(text)
+                            
+                    except Exception as e:
+                        logger.warning(f"Failed to process EPUB file {file_name}: {e}")
+                        continue
             
-            full_text = "\n".join(text_parts)
+            full_text = "\n\n".join(text_parts)
             return self._clean_extracted_text(full_text)
             
         except Exception as e:
             logger.error(f"Failed to extract text from EPUB: {e}")
             raise
+    
+    def _parse_opf_for_content_files(self, opf_content: str, epub_zip: zipfile.ZipFile) -> list:
+        """Parse OPF file to get ordered content files."""
+        try:
+            # Remove namespace prefixes for simpler parsing
+            opf_content = re.sub(r'xmlns[^=]*="[^"]*"', '', opf_content)
+            opf_content = re.sub(r'<([^>\s]+:)', r'<', opf_content)
+            opf_content = re.sub(r'</([^>\s]+:)', r'</', opf_content)
+            
+            root = ET.fromstring(opf_content)
+            
+            # Find manifest items
+            manifest_items = {}
+            for item in root.findall('.//item'):
+                item_id = item.get('id')
+                href = item.get('href')
+                if item_id and href:
+                    manifest_items[item_id] = href
+            
+            # Find spine order
+            spine_items = []
+            for itemref in root.findall('.//itemref'):
+                idref = itemref.get('idref')
+                if idref in manifest_items:
+                    spine_items.append(manifest_items[idref])
+            
+            # Filter to existing HTML/XHTML files
+            content_files = []
+            for href in spine_items:
+                # Handle relative paths
+                full_paths = [f for f in epub_zip.namelist() if f.endswith(href)]
+                if full_paths:
+                    content_files.append(full_paths[0])
+            
+            return content_files
+            
+        except Exception as e:
+            logger.warning(f"Failed to parse OPF file: {e}")
+            return []
+    
+    def _extract_html_text(self, html_content: str) -> str:
+        """Extract text from HTML using built-in html.parser."""
+        try:
+            extractor = HTMLTextExtractor()
+            extractor.feed(html_content)
+            return extractor.get_text()
+        except Exception as e:
+            logger.warning(f"HTML parsing failed, using regex fallback: {e}")
+            # Fallback: simple regex-based HTML tag removal
+            text = re.sub(r'<style[^>]*>.*?</style>', '', html_content, flags=re.DOTALL | re.IGNORECASE)
+            text = re.sub(r'<script[^>]*>.*?</script>', '', text, flags=re.DOTALL | re.IGNORECASE)
+            text = re.sub(r'<[^>]+>', '', text)
+            text = re.sub(r'&[a-zA-Z0-9#]+;', ' ', text)  # Remove HTML entities
+            return text
     
     def _extract_from_txt(self, file_path: str) -> str:
         """Extract text from TXT file with encoding detection."""
