@@ -31,8 +31,8 @@ class ProductionConfig(Config):
     TESTING = False
     SECRET_KEY = os.environ.get('SECRET_KEY')
     
-    # Production CORS - more restrictive
-    CORS_ORIGINS = os.environ.get('CORS_ORIGINS', 'https://localhost:8081,https://expo.dev').split(',')
+    # Production CORS - temporarily allow all origins for testing, then restrict later
+    CORS_ORIGINS = os.environ.get('CORS_ORIGINS', '*').split(',') if os.environ.get('CORS_ORIGINS') else ['*']
 
 class TestingConfig(Config):
     """Testing configuration."""

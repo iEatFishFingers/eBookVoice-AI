@@ -146,6 +146,10 @@ const styles = StyleSheet.create({
     fontSize: typography.fontSizes.md,
     fontWeight: typography.fontWeights.medium,
   },
+  defaultText: {
+    fontSize: typography.fontSizes.sm,
+    fontWeight: typography.fontWeights.medium,
+  },
   smText: {
     fontSize: typography.fontSizes.sm,
   },
