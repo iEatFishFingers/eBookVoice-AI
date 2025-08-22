@@ -22,8 +22,12 @@ def create_app(config_name=None):
     app = Flask(__name__)
     app.config.from_object(config[config_name])
     
-    # Configure CORS
-    CORS(app, origins=app.config['CORS_ORIGINS'])
+    # Configure CORS with explicit settings
+    CORS(app, 
+         origins=app.config['CORS_ORIGINS'],
+         allow_headers=['Content-Type', 'Authorization'],
+         methods=['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+         supports_credentials=True)
     
     # Configure logging for production
     if config_name == 'production':

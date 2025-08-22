@@ -14,8 +14,9 @@ class Config:
     # JWT settings
     JWT_EXPIRATION_HOURS = 24 * 7  # 7 days
     
-    # CORS settings
-    CORS_ORIGINS = os.environ.get('CORS_ORIGINS', '*').split(',')
+    # CORS settings - Default to allow common development and production origins
+    default_origins = 'https://ebookvoiceai.netlify.app,http://localhost:8081,http://localhost:19006,https://localhost:8081'
+    CORS_ORIGINS = os.environ.get('CORS_ORIGINS', default_origins).split(',')
     
     # Rate limiting
     RATELIMIT_STORAGE_URL = os.environ.get('REDIS_URL', 'memory://')
@@ -31,8 +32,9 @@ class ProductionConfig(Config):
     TESTING = False
     SECRET_KEY = os.environ.get('SECRET_KEY')
     
-    # Production CORS - temporarily allow all origins for testing, then restrict later
-    CORS_ORIGINS = os.environ.get('CORS_ORIGINS', '*').split(',') if os.environ.get('CORS_ORIGINS') else ['*']
+    # Production CORS - Allow Netlify and common development origins
+    default_origins = 'https://ebookvoiceai.netlify.app,http://localhost:8081,http://localhost:19006,https://localhost:8081'
+    CORS_ORIGINS = os.environ.get('CORS_ORIGINS', default_origins).split(',')
 
 class TestingConfig(Config):
     """Testing configuration."""
